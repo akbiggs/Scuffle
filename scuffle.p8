@@ -430,12 +430,21 @@ function bullet:_init(
     anim, pos, vel, life,
     is_enemy, left, props)
   props = props or {}
+  
   if props.destroy_on_hit == nil
   then
     self.destroy_on_hit = true
   else
   		self.destroy_on_hit =
   		    props.destroy_on_hit
+  end
+  
+  if props.reflectable == nil
+  then
+    self.reflectable = false
+  else
+    self.reflectable =
+        props.reflectable
   end
   
   -- hitbox size
@@ -488,6 +497,21 @@ function bullet:collide(other)
     return true
   end
   return false
+end
+
+function bullet:reflect()
+  self.vel = -self.vel
+  self.is_enemy =
+      not self.is_enemy
+  -- give a slight speedup
+  -- for satisfaction
+  self.vel *= 2
+  -- only allow one reflection
+  self.reflectable = false
+  -- add some more life so it
+  -- lasts longer
+  self.life += 50
+  self.left = not self.left
 end
 
 function bullet:draw()
@@ -650,6 +674,7 @@ function imp:_init(pos, left)
   
   self.windup_time = 0
   self.attack_pos = nil
+  self.throw_cooldown = 0
 end
 
 function imp:shoot(bullets)
@@ -668,8 +693,13 @@ function imp:shoot(bullets)
       vel,
       100,
       --[[is_enemy=]]true,
-      self.left)
+      self.left,
+      {
+        reflectable=true,
+      })
   add(bullets, bullet)
+  
+  self.throw_cooldown = 50
 end
 
 function imp:move_to_attack()
@@ -712,7 +742,11 @@ end
 
 function imp:update(
     player, bullets)
-  if self.windup_time > 0
+  if self.throw_cooldown > 0
+  then
+    self.throw_cooldown -= 1
+    return
+  elseif self.windup_time > 0
   then
     self.windup_time -= 1
     if self.windup_time == 0
@@ -983,6 +1017,21 @@ function _update60()
   for b in all(state.bullets)
   do
     b:update()
+    
+    -- handle reflections
+    for ob in all(state.bullets)
+    do
+      if b != ob and
+         ob.reflectable and
+         ((b.is_enemy and
+           not ob.is_ememy) or
+          (ob.is_enemy and
+           not b.is_enemy)) and
+         ob:collide(b)
+      then
+        ob:reflect()
+      end 
+    end
 
     local pushback =
         ternary(
