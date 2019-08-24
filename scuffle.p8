@@ -391,13 +391,6 @@ end
 
 -- button helpers
 
--- is a button just pressed?
--- relies on prev_btn being
--- updated at the end of the
--- game loop
--- different from btnp because
--- it doesn't use keyboard-style
--- repeating 
 local prev_btn = {
   false,
   false,
@@ -407,6 +400,13 @@ local prev_btn = {
   false,
 }
 
+-- is a button just pressed?
+-- relies on prev_btn being
+-- updated at the end of the
+-- game loop
+-- different from btnp because
+-- it doesn't use keyboard-style
+-- repeating 
 function btnjp(i)
   -- todo: add support for more
   --       than one player
@@ -524,6 +524,61 @@ function bullet:draw()
       1, 1,
       -- flip_x
       self.left)       
+end
+
+-- i threw this in here because
+-- it was really noisy
+function update_bullets(state)
+  -- bullets
+  for b in all(state.bullets)
+  do
+    b:update()
+    
+    -- handle reflections
+    for ob in all(state.bullets)
+    do
+      if b != ob and
+         ob.reflectable and
+         b.is_enemy != ob.is_enemy and
+         b:collide(ob)
+      then
+        ob:reflect()
+      end 
+    end
+
+    -- handle damage and
+    -- pushback
+    local pushback =
+        ternary(
+            bullet.left,
+            vec(-1, 0),
+            vec(1, 0))    
+    if b.is_enemy
+    then
+      local p = state.player
+      if p.invuln_cooldown <= 0
+          and b:collide(p)
+      then
+        p.invuln_cooldown = 100
+        p.walk_cooldown = 20
+        p.pos += pushback
+      end
+    else
+      for e in all(
+          state.enemies)
+      do
+        if e.invuln_cooldown <= 0
+            and b:collide(e)       
+        then
+          e.invuln_cooldown =
+              40
+          e.hitstun_cooldown =
+              60
+          e.pos += pushback
+        end
+      end
+    end
+  end
 end
 -->8
 -- walker + player
@@ -971,6 +1026,55 @@ end
 
 local state = {}
 
+local wave = class.build()
+
+function wave:_init(
+  startx, enemies, lock_cam)
+  self.startx = startx
+  self.enemies = enemies
+  self.spawned = false
+  self.lock_cam = ternary(
+      lock_cam != nil,
+      lock_cam, true)
+end
+
+function wave:done()
+  return self.spawned and
+      #self.enemies == 0 
+end
+
+function wave:update(
+    player, enemies)
+  if (self:done()) return
+  
+  if not self.spawned and
+     player.pos.x >= self.startx
+  then
+    self.spawned = true
+    for e in all(self.enemies)
+    do
+      add(enemies, e)
+    end
+  elseif self.spawned
+  then
+    self.enemies = filter_alive(
+        self.enemies)
+  end
+end
+
+function any_wave_locking_cam(
+    waves)
+  for w in all(waves)
+  do
+    if not w:done() and
+       w.lock_cam
+    then
+      return true
+    end
+  end
+  return false
+end
+
 function reset()
   -- useful for game over state
   -- resetting
@@ -979,17 +1083,22 @@ function reset()
   state.camera = cam(
       state.player)
   
-  state.enemies = {
-    walker(vec(80, 30)),
-    walker(vec(100, 60)),
-    walker(vec(50, 80)),
-    imp(vec(100, -5),
-        --[[left=]]true),
-    imp(vec(8, -10),
-        --[[left=]]false)
+  state.waves = {
+    wave(50, {
+      walker(vec(80, 30)),
+    		walker(vec(100, 60)),
+    		walker(vec(50, 80)),
+   		 imp(vec(100, -5),
+     		   --[[left=]]true),
+    		imp(vec(8, -10),
+      		  --[[left=]]false)
+    })
   }
+
+  state.enemies = {}
   state.bullets = {}
   state.particles = {}
+  state.prompt_move_dist = 0
 end
 
 function _init()
@@ -1004,9 +1113,33 @@ function _update60()
     p:update(state.bullets)
   end
   
-  -- camera
-  state.camera:update()
+  -- waves
+  for w in all(state.waves)
+  do
+    w:update(p, state.enemies)
+  end
   
+  -- camera
+  if not any_wave_locking_cam(
+      state.waves)
+  then
+    local old_campos = vec(
+        state.camera.pos)
+    
+    state.camera:update()
+    
+    -- stop prompting the player
+    -- to move when the camera
+    -- moves enough
+    local delta =
+        state.camera.pos.x -
+        old_campos.x
+    state.prompt_move_dist =
+        push_towards(
+            state.prompt_move_dist,
+            0, delta)
+  end
+   
   -- enemies
   for e in all(state.enemies)
   do
@@ -1014,77 +1147,42 @@ function _update60()
   end
   
   -- bullets
-  for b in all(state.bullets)
-  do
-    b:update()
-    
-    -- handle reflections
-    for ob in all(state.bullets)
-    do
-      if b != ob and
-         ob.reflectable and
-         b.is_enemy != ob.is_enemy and
-         b:collide(ob)
-      then
-        ob:reflect()
-      end 
-    end
-
-    -- handle damage and
-    -- pushback
-    local pushback =
-        ternary(
-            bullet.left,
-            vec(-1, 0),
-            vec(1, 0))    
-    if b.is_enemy
-    then
-      if p.invuln_cooldown <= 0
-          and b:collide(p)
-      then
-        p.invuln_cooldown = 100
-        p.walk_cooldown = 20
-        p.pos += pushback
-      end
-    else
-      for e in all(
-          state.enemies)
-      do
-        if e.invuln_cooldown <= 0
-            and b:collide(e)       
-        then
-          e.invuln_cooldown =
-              40
-          e.hitstun_cooldown =
-              60
-          e.pos += pushback
-        end
-      end
-    end
-  end
+  update_bullets(state)
   
   -- particles
   for p in all(state.particles)
   do
     p:update()
   end
-
+  
+  -- clear dead stuff
+  local old_enemy_count =
+      #state.enemies
   state.enemies = filter_alive(
       state.enemies)
   state.bullets = filter_alive(
       state.bullets)
   state.particles = filter_alive(
       state.particles)
+ 
+  -- prompt to move when all the
+  -- enemies are dead
+  if old_enemy_count > 0 and
+     #state.enemies == 0
+  then
+    state.prompt_move_dist = 20
+  end
 end
 
 function draw_ui()
   -- prompt the player to
-  -- advance if the camera can
-  -- move but hasn't in a while
-  -- (todo: ^)
-  spr(15,
-      114 + nsin(time()) * 1.8,
-      4)
+  -- advance
+  if state.prompt_move_dist > 0
+  then
+  		spr(15,
+    		  114 + nsin(time()) * 1.8,
+      		4)
+  end
 
   print(state.player.life)
 end
