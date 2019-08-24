@@ -509,7 +509,7 @@ function bullet:reflect()
   self.is_enemy = not self.is_enemy
   -- give a slight speedup
   -- for satisfaction
---  self.vel *= 1.2
+  self.vel *= 1.4
   -- only allow one reflection
   self.reflectable = false
   -- add some more life so it
@@ -555,8 +555,8 @@ function update_bullets(state)
     local pushback =
         ternary(
             bullet.left,
-            vec(-1, 0),
-            vec(1, 0))    
+            vec(-1.5, 0),
+            vec(1.5, 0))    
     if b.is_enemy
     then
       local p = state.player
