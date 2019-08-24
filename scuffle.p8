@@ -635,7 +635,7 @@ function player:walk()
     self.left = false
   end
 
-  local speed = 0.3
+  local speed = 0.4
   self.vel = direc * speed
 end
 
@@ -734,6 +734,7 @@ function _update60()
           and b:collide(p)
       then
         p.invuln_cooldown = 100
+        p.walk_cooldown = 20
       end
     else
       for e in all(
