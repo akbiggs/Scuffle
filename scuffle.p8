@@ -610,7 +610,7 @@ function player:update(bullets)
   end
   
   if self:can_swing() and
-      btnjp(🅾️)
+      btnjp(❎)
   then
     self:swing(bullets)
   end
