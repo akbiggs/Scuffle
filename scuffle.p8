@@ -139,9 +139,7 @@ function in_range(x, xmin, xmax)
 end
 
 function wrap_idx(i, size)
-  i = i % (size + 1)
-  if (i == 0) return 1
-  return i
+  return i % size + 1
 end
 
 -- table helpers
