@@ -871,34 +871,16 @@ function cam:_init(p)
 end
 
 function cam:update()
-  local function center_on(
-      target,
-      current,
-      give,
-      minimum,
-      maximum)
-    return clamp(
-      clamp(
-        current,
-        target - give,
-        target + give),
-      minimum,
-      maximum)
-  end
-
-  self.pos = vec(
-    center_on(
-      self.p.pos.x - self.center.x,
-      self.pos.x,
-      self.give,
-      self.min.x,
-      self.max.x),
-    center_on(
-      self.p.pos.y - self.center.y,
-      self.pos.y,
-      self.give,
-      self.min.y,
-      self.max.y))
+  local target =
+      self.p.pos - self.center
+  self.pos =
+    self.pos
+      :clamp(
+		      target - self.give,
+		      target + self.give)
+      :clamp(
+        self.min,
+        self.max)
 end
 
 function cam:draw()
