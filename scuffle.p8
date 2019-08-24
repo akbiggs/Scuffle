@@ -360,7 +360,15 @@ local bullet = class.build()
 
 function bullet:_init(
     anim, pos, vel, life,
-    is_enemy, left, size)
+    is_enemy, left, size,
+    destroy_on_hit)
+  if destroy_on_hit == nil
+  then
+    self.destroy_on_hit = true
+  else
+  		self.destroy_on_hit =
+  		    destroy_on_hit
+  end
   self.size = size or vec(8, 8)
 
   self.anim = anim
@@ -370,6 +378,8 @@ function bullet:_init(
   self.life = life
   self.is_enemy = is_enemy
   self.left = left
+  self.destroy_on_hit = (
+      destroy_on_hit)
 end
 
 function bullet:update()
@@ -389,7 +399,10 @@ function bullet:collide(other)
   if bullet_hb:intersects(
       other_hb)
   then
-    bullet.life = 0
+    if self.destroy_on_hit
+    then
+      bullet.life = 0
+    end
     other.life -= 1
     return true
   end
@@ -414,6 +427,58 @@ function walker:_init(pos)
   self.vel = vec(0, 0)
   self.left = false
   self.cooldown = 100
+  
+  self.walk_cooldown = 50
+  self.walk_dist = 50
+end
+
+function walker:walk_towards(
+    player)
+  self.vel = vec(0, 0)
+  self.walk_cooldown = max(0,
+      self.walk_cooldown - 1)
+  if self.walk_cooldown > 0
+  then
+    return
+  end
+  
+  local direc = player.pos -
+      self.pos
+  local speed = 0.2
+  self.vel = (
+      direc:normalized() *
+      speed)
+  local dist = self.vel:mag()
+  self.walk_dist -= dist
+  
+  if self.walk_dist <= 0
+  then
+    self.walk_dist = 50 +
+        rnd(50)
+    self.walk_cooldown = 50 +
+        rnd(50)
+  end
+end
+
+
+function walker:swing(bullets)
+  self.vel = vec(0, 0)
+  self.cooldown = 100
+  local bullet_offset =
+      ternary(
+          self.left,
+          vec(8, 0),
+          vec(-8, 0))
+  add(bullets,
+      bullet(
+          anim(16, 20, false,
+               6),
+          self.pos +
+              bullet_offset,
+          vec(0, 0),
+          30,
+          --[[is_enemy]]true,
+          self.left))
 end
 
 function walker:update(
@@ -425,37 +490,18 @@ function walker:update(
   local attack_dist = 0.01
   local wants_attack =
       direc:mag() <= attack_dist
-  if wants_attack and
-     self.cooldown <= 0 then
-    self.vel = vec(0, 0)
-    self.cooldown = 100
-    local bullet_offset =
-        ternary(
-            self.left,
-            vec(8, 0),
-            vec(-8, 0))
-    add(bullets,
-        bullet(
-            anim(16, 20, false,
-                 6),
-            self.pos +
-                bullet_offset,
-            vec(0, 0),
-            30,
-            --[[is_enemy]]true,
-            self.left))
-  elseif not wants_attack then
-    self.vel = (
-        direc:normalized())
-    local speed = 0.2
-    self.vel *= speed
+  if not wants_attack then
+    self:walk_towards(player)
+  elseif self.cooldown <= 0 then
+    self:swing(bullets)
   end
   
   self.pos += self.vel
 end
 
 function walker:draw()
-  print(self.pos.x, 0, 100)
+  
+  print(self.cooldown, 0, 100)
   spr(1, self.pos.x,
       self.pos.y,
       1, 1,
