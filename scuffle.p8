@@ -587,6 +587,7 @@ function update_bullets(state)
           e.hitstun_cooldown =
               60
           e.pos += pushback
+          e.vel = pushback / 4
           sfx(20)
         end
       end
@@ -922,33 +923,16 @@ function seeker:tail_end_idx()
       self.separation
 end
 
-function seeker:update(
+function seeker:seek(
     player, bullets)
-  self.invuln_cooldown = max(0,
-      self.invuln_cooldown - 1)
-  self.hitstun_cooldown = max(0,
-      self.hitstun_cooldown - 1)
-
   local direc = player.pos -
       self.pos
-  
-  -- push the tail back
-  local end_idx =
-      self:tail_end_idx()
-  for i=end_idx,2,-1
-  do
-    self.tail[i] =
-        self.tail[i-1]
-  end
-  
-  -- put the new position at
-  -- the front of the tail
-  self.pos =
-      self.pos:push_towards(
-          player.pos,
-          self.speed)
-  self.tail[1] = self.pos
-  
+  self.vel =
+      self.vel:push_towards(
+          direc:normalized() *
+          self.speed,
+          0.025) 
+ 
   -- to do collisions with the
   -- eye, put a bullet in the
   -- eye for one frame
@@ -963,6 +947,37 @@ function seeker:update(
           {
             size=vec(4, 4),
           }))
+end
+
+function seeker:update(
+    player, bullets)
+  self.invuln_cooldown = max(0,
+      self.invuln_cooldown - 1)
+  self.hitstun_cooldown = max(0,
+      self.hitstun_cooldown - 1)
+
+  if self.hitstun_cooldown == 0
+  then
+    self:seek(player, bullets)
+  else
+    -- drop a bit while taking
+    -- damage
+    self.vel.y += 0.01
+  end
+  
+    -- push the tail back
+  local end_idx =
+      self:tail_end_idx()
+  for i=end_idx,2,-1
+  do
+    self.tail[i] =
+        self.tail[i-1]
+  end
+  
+  -- put the new position at
+  -- the front of the tail
+  self.pos += self.vel
+  self.tail[1] = self.pos  
 end
 
 function seeker:draw()
@@ -997,9 +1012,12 @@ function seeker:draw()
     elseif i > 1
     then
       sprid = 29
+    elseif self.hitstun_cooldown > 0
+    then
+      sprid = 28
     else
-      print(self.life)
-    end 
+      sprid = 27
+    end
 
     if i == 1 or 
        divby(self.separation, i)
