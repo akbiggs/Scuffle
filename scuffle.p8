@@ -903,23 +903,23 @@ function seeker:_init(pos)
   
   self.life = 4
   self.tail_length = 4
-  self.separation = 12
-  self.speed = 0.35
+  self.separation = 10
+  self.speed = 0.6
   self.invuln_cooldown = 0
   -- not used but necessary
   self.hitstun_cooldown = 0
-  
+
   -- tail is a list of previous
-  -- positions. the first elt
+  -- positions. the last elt
   -- is the furthest position,
-  -- the last elt is the current
-  -- position
+  -- the first elt is the
+  -- current position
   self.tail = {}
   for i=self:tail_end_idx(),1,-1
   do
     add(self.tail,
         vec(self.pos.x,
-            self.pos.y - self.speed))
+            self.pos.y))
   end
 end
 
@@ -1230,6 +1230,87 @@ function player:draw()
       self.left)
   pal(9, 9)
 end
+
+-- departed soul
+-- the final boss of the game
+-- who you steal the gold from.
+
+local soul = class.build()
+
+function soul:_init(pos, shirt)
+  self.pos = vec(pos)
+  self.vel = vec(0, 0)
+  
+  self.life = 12
+  self.shirt_color = shirt
+  self.invuln_cooldown = 0
+  self.hitstun_cooldown = 0
+  
+  self.left = false
+  
+  self.unaware = true
+  self.confused = false
+  self.confused_frames = 0
+end
+
+function soul:react_to_player(
+    player)
+  if abs(player.pos.x - self.pos.x) < 45
+  then
+    self.unaware = false
+    self.confused = true
+  end
+end
+
+function soul:be_confused(
+    player)
+  if player.pos.x < self.pos.x
+  then
+    self.left = true
+  else
+    self.left = false
+  end
+  
+  self.confused_frames += 1
+end
+
+function soul:update(
+    player, bullets)
+  self.invuln_cooldown = max(0,
+      self.invuln_cooldown - 1)
+  self.hitstun_cooldown = max(0,
+      self.hitstun_cooldown - 1)
+
+  if self.unaware
+  then
+    self:react_to_player(player)
+  elseif self.confused
+  then
+    self:be_confused(player)
+  else
+    -- boss battle!!!!!
+  end
+end
+
+function soul:draw()
+  if self.confused
+  then
+    local offset = min(
+        4,
+        self.confused_frames) +
+        2
+     
+    local text_pos =
+        self.pos + vec(2,
+                       -offset) 
+    print(
+        "?",
+        text_pos.x, text_pos.y,
+        6)
+  end
+  
+  player.draw(self)
+end
 -->8
 -- tile generation and drawing
 
@@ -1278,7 +1359,7 @@ cam = class.build()
 
 function cam:_init(p)
   self.p = p
-  self.give = 16
+  self.give = -20
   self.pos = vec(0, 0)
   self.min = vec(0, 0)
   self.max = vec(128, 0)
@@ -1328,14 +1409,18 @@ function reset()
       imp(vec(112, -15),
           --[[left=]]true),
     }),
-    wave(80, {
-      seeker(vec(64, -5)),
+    wave(100, {
+      seeker(vec(100, -5)),
     }, {
       spawn_health=true
     }),
   }
 
-  state.enemies = {}
+  state.enemies = {
+    soul(
+        vec(200, 50),
+        state.player.shirt_color - 1),
+  }
   state.bullets = {}
   state.particles = {}
   state.pickups = {}
@@ -1444,7 +1529,8 @@ function draw_ui()
       		4)
   end
 
-  print(state.player.life)
+  print(state.player.life,
+        0, 0, 6)
 end
 
 function _draw()
