@@ -389,7 +389,7 @@ function filter_alive(xs)
   return alive 
 end
 -->8
--- bullets
+-- bullets + weapons
 
 local bullet = class.build()
 
@@ -700,7 +700,9 @@ function reset()
       vec(20, 20))
   
   state.enemies = {
-    walker(vec(80, 30))
+    walker(vec(80, 30)),
+    walker(vec(100, 60)),
+    walker(vec(50, 80)),
   }
   state.bullets = {}
 end
