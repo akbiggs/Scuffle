@@ -526,7 +526,8 @@ function bullet:draw()
       self.left)       
 end
 
--- i threw this in here because
+-- this is game update stuff,
+-- but i tossed it in here cuz
 -- it was really noisy
 function update_bullets(state)
   -- bullets
@@ -540,6 +541,9 @@ function update_bullets(state)
       if b != ob and
          ob.reflectable and
          b.is_enemy != ob.is_enemy and
+         -- only reflect bullets
+         -- in opposite direction
+         b.left != ob.left and
          b:collide(ob)
       then
         ob:reflect()
