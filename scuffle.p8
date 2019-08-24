@@ -427,7 +427,7 @@ function filter_alive(xs)
   return alive 
 end
 -->8
--- bullets + weapons
+-- bullets (inc. game loop)
 
 local bullet = class.build()
 
@@ -507,6 +507,8 @@ end
 function bullet:reflect()
   self.vel = -self.vel
   self.is_enemy = not self.is_enemy
+  self.left = not self.left
+
   -- give a slight speedup
   -- for satisfaction
   self.vel *= 1.4
@@ -515,7 +517,6 @@ function bullet:reflect()
   -- add some more life so it
   -- lasts longer
   self.life += 50
-  self.left = not self.left
 end
 
 function bullet:draw()
@@ -585,7 +586,7 @@ function update_bullets(state)
   end
 end
 -->8
--- walker + player
+-- enemies + player
 
 local movement_min = vec(
     0, 4 * 8 - 4)
@@ -620,7 +621,7 @@ function walker:walk_towards(
   
   local direc = player.pos -
       self.pos
-  local speed = 0.2
+  local speed = 0.3
   self.vel = (
       direc:normalized() *
       speed)
@@ -834,6 +835,67 @@ end
 
 -- todo!!!!
 
+-- enemy waves
+
+local wave = class.build()
+
+function wave:_init(
+  startx, enemies, lock_cam)
+  -- camera offset, not player
+  self.startx = startx
+  self.enemies = enemies
+  self.spawned = false
+  self.lock_cam = ternary(
+      lock_cam != nil,
+      lock_cam, true)
+  
+  -- add startx to enemy pos
+  -- to make calculations
+  -- easier
+  for e in all(self.enemies)
+  do
+    e.pos.x += self.startx
+  end
+end
+
+function wave:done()
+  return self.spawned and
+      #self.enemies == 0 
+end
+
+function wave:update(
+    cam, enemies)
+  if (self:done()) return
+  
+  if not self.spawned and
+     cam.pos.x >= self.startx
+  then
+    self.spawned = true
+    for e in all(self.enemies)
+    do
+      add(enemies, e)
+    end
+  elseif self.spawned
+  then
+    self.enemies = filter_alive(
+        self.enemies)
+  end
+end
+
+function any_wave_locking_cam(
+    waves)
+  for w in all(waves)
+  do
+    if w.spawned and
+       not w:done() and
+       w.lock_cam
+    then
+      return true
+    end
+  end
+  return false
+end
+
 -- player
 
 local player = class.build()
@@ -1021,6 +1083,7 @@ function cam:update()
 end
 
 function cam:draw()
+  print(self.pos.x)
   camera(
       self.pos.x,
       self.pos.y)
@@ -1029,55 +1092,6 @@ end
 -- game
 
 local state = {}
-
-local wave = class.build()
-
-function wave:_init(
-  startx, enemies, lock_cam)
-  self.startx = startx
-  self.enemies = enemies
-  self.spawned = false
-  self.lock_cam = ternary(
-      lock_cam != nil,
-      lock_cam, true)
-end
-
-function wave:done()
-  return self.spawned and
-      #self.enemies == 0 
-end
-
-function wave:update(
-    player, enemies)
-  if (self:done()) return
-  
-  if not self.spawned and
-     player.pos.x >= self.startx
-  then
-    self.spawned = true
-    for e in all(self.enemies)
-    do
-      add(enemies, e)
-    end
-  elseif self.spawned
-  then
-    self.enemies = filter_alive(
-        self.enemies)
-  end
-end
-
-function any_wave_locking_cam(
-    waves)
-  for w in all(waves)
-  do
-    if not w:done() and
-       w.lock_cam
-    then
-      return true
-    end
-  end
-  return false
-end
 
 function reset()
   -- useful for game over state
@@ -1088,21 +1102,21 @@ function reset()
       state.player)
   
   state.waves = {
-    wave(50, {
+    wave(20, {
       walker(vec(80, 30)),
-    		walker(vec(100, 60)),
-    		walker(vec(50, 80)),
-   		 imp(vec(100, -5),
-     		   --[[left=]]true),
-    		imp(vec(8, -10),
-      		  --[[left=]]false)
-    })
+    		walker(vec(25, 60)),
+    }), wave(50, {
+      imp(vec(8, -5),
+          --[[left=]]false),
+      imp(vec(112, -15),
+          --[[left=]]true),
+    }),
   }
 
   state.enemies = {}
   state.bullets = {}
   state.particles = {}
-  state.prompt_move_dist = 0
+  state.prompt_move_dist = 20
 end
 
 function _init()
@@ -1120,7 +1134,8 @@ function _update60()
   -- waves
   for w in all(state.waves)
   do
-    w:update(p, state.enemies)
+    w:update(state.camera,
+             state.enemies)
   end
   
   -- camera
@@ -1131,10 +1146,16 @@ function _update60()
         state.camera.pos)
     
     state.camera:update()
+
+    -- don't let the camera
+    -- go back to the left
+    state.camera.min.x =
+        state.camera.pos.x
     
     -- stop prompting the player
     -- to move when the camera
-    -- moves enough
+    -- moves enough (they get
+    -- the point)
     local delta =
         state.camera.pos.x -
         old_campos.x
@@ -1181,7 +1202,9 @@ end
 function draw_ui()
   -- prompt the player to
   -- advance
-  if state.prompt_move_dist > 0
+  if not any_wave_locking_cam(
+      state.waves) and
+     state.prompt_move_dist > 0
   then
   		spr(15,
     		  114 + nsin(time()) * 1.8,
