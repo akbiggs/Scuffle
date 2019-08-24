@@ -640,7 +640,7 @@ function player:walk()
 end
 
 function player:swing(bullets)
-  self.swing_cooldown = 70
+  self.swing_cooldown = 50
   self.walk_cooldown = 20
   
   local bullet_offset =
