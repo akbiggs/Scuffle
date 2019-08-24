@@ -654,6 +654,8 @@ local state = {}
 function reset()
   state.player = player(
       vec(20, 20))
+  state.camera = cam(
+      state.player)
   
   state.enemies = {
     walker(vec(80, 30))
@@ -672,7 +674,7 @@ function _update60()
   if p.life > 0 then
     p:update(state.bullets)
   end
-
+  
   -- enemies
   for e in all(state.enemies)
   do
@@ -734,6 +736,8 @@ function _draw()
   end
 end
 -->8
+-- tile generation and drawing
+
 tile_gen = class.build()
 
 function tile_gen:_init()
@@ -771,6 +775,32 @@ function tile_gen:draw()
     spr(d.t, d.x, d.y)
   end
   clip()
+end
+-->8
+-- camera
+
+cam = class.build()
+
+function cam:_init(p)
+  self.p = player
+  self.give = 16
+  self.pos = vec(0, 0)
+end
+
+function cam:update()
+  self.pos = vec(
+	     clamp(
+          self.pos + 64
+          p.pos.x - self.give,
+          p.pos.x + self.give)
+          - 64,
+      self.pos.y)
+end
+
+function cam:draw()
+  camera(
+      self.pos.x,
+      self.pos.y)
 end
 __gfx__
 000000009999999966666666aaaaaaaa000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
