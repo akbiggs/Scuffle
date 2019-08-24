@@ -419,7 +419,7 @@ function bullet:draw()
       self.left)       
 end
 -->8
--- walker
+-- walker + player
 
 -- walks towards the player
 -- and beats the living ****
@@ -517,18 +517,16 @@ function walker:update(
 end
 
 function walker:draw()
-  print(self.vel.x, 0, 100)
   spr(1, self.pos.x,
       self.pos.y,
       1, 1,
       -- flip_x
       self.left)
 end
--->8
--- game
 
-local state = {}
+-- player
 
+-- the player character
 local player = class.build()
 
 function player:_init(pos)
@@ -628,6 +626,10 @@ function player:draw()
       1, 1,
       self.left)
 end
+-->8
+-- game
+
+local state = {}
 
 function reset()
   state.player = player(
