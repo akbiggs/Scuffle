@@ -118,6 +118,8 @@ function vec:sqr_mag()
 end
 
 function vec:normalized()
+  local mag = self:mag()
+  if (mag == 0) return vec(0, 0)
   return self / self:mag()
 end
 
@@ -139,7 +141,9 @@ function in_range(x, xmin, xmax)
 end
 
 function wrap_idx(i, size)
-  return i % size + 1
+  i = i % (size + 1)
+  if (i == 0) return 1
+  return i
 end
 
 -- table helpers
@@ -352,24 +356,59 @@ function filter_alive(xs)
   return alive 
 end
 -->8
+-- bullets
+
 local bullet = class.build()
 
 function bullet:_init(
     anim, pos, vel, life,
-    is_enemy, left)
+    is_enemy, left, size,
+    destroy_on_hit)
+  if destroy_on_hit == nil
+  then
+    self.destroy_on_hit = true
+  else
+  		self.destroy_on_hit =
+  		    destroy_on_hit
+  end
+  self.size = size or vec(8, 8)
+
   self.anim = anim
-  self.pos = pos
-  self.vel = vel
+  self.pos = vec(pos)
+  self.vel = vec(vel)
   -- lifetime in ticks
   self.life = life
   self.is_enemy = is_enemy
   self.left = left
+  self.destroy_on_hit = (
+      destroy_on_hit)
 end
 
 function bullet:update()
   self.pos += self.vel
   self.life -= 1
   self.anim:update()
+end
+
+function bullet:collide(other)
+  local bullet_hb = hbox(
+      self.pos,
+      self.size)
+  local other_hb = hbox(
+      other.pos,
+      other.size or vec(8, 8))
+  
+  if bullet_hb:intersects(
+      other_hb)
+  then
+    if self.destroy_on_hit
+    then
+      bullet.life = 0
+    end
+    other.life -= 1
+    return true
+  end
+  return false
 end
 
 function bullet:draw()
@@ -380,18 +419,226 @@ function bullet:draw()
       self.left)       
 end
 -->8
+-- walker + player
+
+-- walks towards the player
+-- and beats the living ****
+-- out of them
+local walker = class.build()
+
+function walker:_init(pos)
+  self.pos = vec(pos)
+  self.vel = vec(0, 0)
+  self.left = false
+  self.cooldown = 100
+  self.life = 3
+  
+  self.walk_cooldown = 50
+  self.walk_dist = 50
+end
+
+function walker:walk_towards(
+    player)
+  self.vel = vec(0, 0)
+  self.walk_cooldown = max(0,
+      self.walk_cooldown - 1)
+  if self.walk_cooldown > 0
+  then
+    return
+  end
+  
+  local direc = player.pos -
+      self.pos
+  local speed = 0.2
+  self.vel = (
+      direc:normalized() *
+      speed)
+  local dist = self.vel:mag()
+  self.walk_dist -= dist
+  
+  if self.walk_dist <= 0
+  then
+    self.walk_dist = 50 +
+        rnd(50)
+    self.walk_cooldown = 50 +
+        rnd(50)
+  end
+end
+
+function walker:swing(bullets)
+  self.vel = vec(0, 0)
+  self.cooldown = 100
+  local bullet_offset =
+      ternary(
+          self.left,
+          vec(-8, 0),
+          vec(8, 0))
+  add(bullets,
+      bullet(
+          anim(16, 20, false,
+               6),
+          self.pos +
+              bullet_offset,
+          vec(0, 0),
+          30,
+          --[[is_enemy]]true,
+          self.left))
+end
+
+function walker:update(
+    player, bullets)
+  if player.life <= 0 then
+    return
+  end
+
+  self.cooldown = max(0,
+      self.cooldown - 1)
+  
+  -- measure distance
+  local direc = player.pos -
+      self.pos
+  local attack_dist = 8
+  local wants_attack =
+      direc:mag() <= attack_dist
+  
+  -- states
+  if not wants_attack then
+    self:walk_towards(player)
+    if self.vel.x < 0 then
+      self.left = true
+    elseif self.vel.x > 0 then
+      self.left = false
+    end
+  elseif self.cooldown <= 0 then
+    self:swing(bullets)
+  end
+  
+  self.pos += self.vel
+end
+
+function walker:draw()
+  spr(1, self.pos.x,
+      self.pos.y,
+      1, 1,
+      -- flip_x
+      self.left)
+end
+
+-- player
+
+-- the player character
+local player = class.build()
+
+function player:_init(pos)
+  self.pos = vec(pos)
+  self.vel = vec(0, 0)
+  self.life = 3
+  self.invuln_cooldown = 100
+  self.left = false
+  
+  self.walk_cooldown = 0
+  self.swing_cooldown = 0
+end
+
+function player:vulnerable()
+  return (
+      self.invuln_cooldown
+      <= 0)
+end
+
+function player:can_walk()
+  return (
+      self.walk_cooldown
+      <= 0)
+end
+
+function player:can_swing()
+  return (
+      self.swing_cooldown
+      <= 0)
+end
+
+function player:walk()
+  local direc = vec(0, 0)
+
+  if (btn(⬅️)) direc.x = -1
+  if (btn(➡️)) direc.x = 1
+  if (btn(⬆️)) direc.y = -1
+  if (btn(⬇️)) direc.y = 1
+  
+  direc = direc:normalized()
+  
+  if direc.x < 0 then
+    self.left = true
+  elseif direc.x > 0 then
+    self.left = false
+  end
+
+  local speed = 0.3
+  self.vel = direc * speed
+end
+
+function player:swing(bullets)
+  self.swing_cooldown = 100
+  self.walk_cooldown = 20
+  
+  local bullet_offset =
+      ternary(
+          self.left,
+          vec(-8, 0),
+          vec(8, 0))
+  add(bullets,
+      bullet(
+          anim(16, 20, false,
+               6),
+          self.pos +
+              bullet_offset,
+          vec(0, 0),
+          30,
+          --[[is_enemy]]false,
+          self.left))
+end
+
+function player:update(bullets)  
+  self.swing_cooldown = max(0,
+      self.swing_cooldown - 1)
+  self.walk_cooldown = max(0,
+      self.walk_cooldown - 1)
+  self.invuln_cooldown = max(0,
+      self.invuln_cooldown - 1)
+  self.vel = vec(0, 0)
+
+  if self:can_walk() then
+    self:walk()
+  end
+  
+  if self:can_swing() and
+      btnjp(❎)
+  then
+    self:swing(bullets)
+  end
+
+  self.pos += self.vel
+end
+
+function player:draw()
+  spr(2, self.pos.x, self.pos.y,
+      1, 1,
+      self.left)
+end
+-->8
+-- game
+
 local state = {}
 
 function reset()
-  state.bullets = {
-    bullet(
-        anim(16, 20, false, 6),
-        vec(20, 20),
-        vec(0, 0),
-        30,
-        --[[is_enemy=]]false,
-        --[[[left=]]false)
+  state.player = player(
+      vec(20, 20))
+  
+  state.enemies = {
+    walker(vec(80, 30))
   }
+  state.bullets = {}
 end
 
 function _init()
@@ -400,9 +647,37 @@ function _init()
 end
 
 function _update60()
+  -- player
+  local p = state.player
+  if p.life > 0 then
+    p:update(state.bullets)
+  end
+
+  -- enemies
+  for e in all(state.enemies)
+  do
+    e:update(p, state.bullets)
+  end
+  
+  -- bullets
   for b in all(state.bullets)
   do
     b:update()
+    
+    if b.is_enemy and
+        p:vulnerable()
+    then
+      if b:collide(p)
+      then
+        p.invuln_cooldown = 100
+      end
+    else
+      for e in all(
+          state.enemies)
+      do
+        b:collide(e)
+      end
+    end
   end
 
   state.bullets = filter_alive(
@@ -413,13 +688,22 @@ function _draw()
   cls()
   map(0, 0, 0, 0)
   random_tiles:draw()
+  print(state.player.life)
+
+  for e in all(state.enemies)
+  do
+    e:draw()
+  end
+
+  if state.player.life > 0 then  
+    state.player:draw()
+  end
+
   for b in all(state.bullets)
   do
     b:draw()
   end
 end
--->8
-
 -->8
 tile_gen = class.build()
 
@@ -457,21 +741,21 @@ function tile_gen:draw()
   end
 end
 __gfx__
+00000000999999996666666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000999999996666666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00700700999999996666666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00077000999999996666666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00077000999999996666666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00700700999999996666666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000999999996666666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000999999996666666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+08888880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000088888800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000888888000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000008888880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00700700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00077000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00077000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00700700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-06666660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000066666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000666666000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000006666660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000066666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000088888800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 dddddddddddddddd11111ddd02000000200000002020000020000000002000000220000000000000000000000000000000000000000000000000000000000000
 1ddd111111ddd111111111110200000020000000020000000200220002d200002dd2000000000000000000000000000000000000000000000000000000000000
