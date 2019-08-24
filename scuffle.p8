@@ -1264,6 +1264,14 @@ end
 
 function soul:be_confused(
     player)
+  if self.hitstun_cooldown > 0
+  then
+    -- we got attacked. we're
+    -- becoming hostile.
+    self.confused = false
+    return
+  end
+
   if player.pos.x < self.pos.x
   then
     self.left = true
