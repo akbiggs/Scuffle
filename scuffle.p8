@@ -613,7 +613,7 @@ local player = class.build()
 function player:_init(pos)
   self.pos = vec(pos)
   self.vel = vec(0, 0)
-  self.life = 3
+  self.life = 10
   self.invuln_cooldown = 100
   self.left = false
   
@@ -725,6 +725,8 @@ end
 local state = {}
 
 function reset()
+  -- useful for game over state
+  -- resetting
   state.player = player(
       vec(20, 20))
   state.camera = cam(
@@ -736,6 +738,7 @@ function reset()
     walker(vec(50, 80)),
   }
   state.bullets = {}
+  state.particles = {}
 end
 
 function _init()
@@ -763,7 +766,12 @@ function _update60()
   for b in all(state.bullets)
   do
     b:update()
-    
+
+    local pushback =
+        ternary(
+            bullet.left,
+            vec(-1, 0),
+            vec(1, 0))    
     if b.is_enemy
     then
       if p.invuln_cooldown <= 0
@@ -771,6 +779,7 @@ function _update60()
       then
         p.invuln_cooldown = 100
         p.walk_cooldown = 20
+        p.pos += pushback
       end
     else
       for e in all(
@@ -783,15 +792,24 @@ function _update60()
               40
           e.hitstun_cooldown =
               60
+          e.pos += pushback
         end
       end
     end
+  end
+  
+  -- particles
+  for p in all(state.particles)
+  do
+    p:update()
   end
 
   state.enemies = filter_alive(
       state.enemies)
   state.bullets = filter_alive(
       state.bullets)
+  state.particles = filter_alive(
+      state.particles)
 end
 
 function _draw()
@@ -799,15 +817,20 @@ function _draw()
   state.camera:draw()
   map(0, 0, 0, 0)
   random_tiles:draw()
-  print(state.player.life)
 
   for e in all(state.enemies)
   do
     e:draw()
   end
 
+  print(state.player.life)
   if state.player.life > 0 then  
     state.player:draw()
+  end
+
+  for p in all(state.particles)
+  do
+    p:draw()
   end
 
   for b in all(state.bullets)
