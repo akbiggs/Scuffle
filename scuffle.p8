@@ -840,7 +840,7 @@ function player:_init(pos)
   self.life = 10
   self.invuln_cooldown = 100
   self.left = false
-  self.shirt_color = 9 + rnd(5)
+  self.shirt_color = 9 + rnd(4)
   
   self.walk_cooldown = 0
   self.swing_cooldown = 0
@@ -880,7 +880,7 @@ function player:walk()
     self.left = false
   end
 
-  local speed = 0.4
+  local speed = 0.6
   self.vel = direc * speed
 end
 
