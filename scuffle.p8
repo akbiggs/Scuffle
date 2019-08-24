@@ -123,6 +123,18 @@ function vec:normalized()
   return self / self:mag()
 end
 
+function vec:min(v)
+  return vec(
+      min(self.x, v.x),
+      min(self.y, v.y))
+end
+
+function vec:max(v)
+  return vec(
+      max(self.x, v.x),
+      max(self.y, v.y))
+end
+
 -- math helpers
 
 function sign(x)
@@ -168,6 +180,19 @@ hbox = class.build()
 function hbox:_init(pos, size)
   self.pos = vec(pos)
   self.size = vec(size)
+end
+
+-- get whether vector |v| is
+-- inside the hitbox
+function hbox:contains(v)
+  return in_range(
+      v.x,
+      self.pos.x,
+      self.pos.x + self.size.x
+  ) and in_range(
+      v.y,
+      self.pos.y,
+      self.pos.y + self.size.y)
 end
 
 function hbox:intersects(hb)
