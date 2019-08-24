@@ -698,6 +698,8 @@ local state = {}
 function reset()
   state.player = player(
       vec(20, 20))
+  state.camera = cam(
+      state.player)
   
   state.enemies = {
     walker(vec(80, 30)),
@@ -718,7 +720,10 @@ function _update60()
   if p.life > 0 then
     p:update(state.bullets)
   end
-
+  
+  -- camera
+  state.camera:update()
+  
   -- enemies
   for e in all(state.enemies)
   do
@@ -762,6 +767,7 @@ end
 
 function _draw()
   cls()
+  state.camera:draw()
   map(0, 0, 0, 0)
   random_tiles:draw()
   print(state.player.life)
@@ -781,6 +787,8 @@ function _draw()
   end
 end
 -->8
+-- tile generation and drawing
+
 tile_gen = class.build()
 
 function tile_gen:_init()
@@ -815,6 +823,56 @@ function tile_gen:draw()
   for d in all(self.deets) do
     spr(d.t, d.x, d.y)
   end
+end
+-->8
+-- camera
+
+cam = class.build()
+
+function cam:_init(p)
+  self.p = p
+  self.give = 16
+  self.pos = vec(0, 0)
+  self.min = vec(0, 0)
+  self.max = vec(128, 0)
+  self.center = vec(128, 128) / 2
+end
+
+function cam:update()
+  local function center_on(
+      target,
+      current,
+      give,
+      minimum,
+      maximum)
+    return clamp(
+      clamp(
+        current,
+        target - give,
+        target + give),
+      minimum,
+      maximum)
+  end
+
+  self.pos = vec(
+    center_on(
+      self.p.pos.x - self.center.x,
+      self.pos.x,
+      self.give,
+      self.min.x,
+      self.max.x),
+    center_on(
+      self.p.pos.y - self.center.y,
+      self.pos.y,
+      self.give,
+      self.min.y,
+      self.max.y))
+end
+
+function cam:draw()
+  camera(
+      self.pos.x,
+      self.pos.y)
 end
 __gfx__
 000000009999999966666666aaaaaaaa000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
