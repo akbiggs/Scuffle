@@ -419,6 +419,8 @@ function bullet:draw()
       self.left)       
 end
 -->8
+-- walker
+
 -- walks towards the player
 -- and beats the living ****
 -- out of them
@@ -429,6 +431,7 @@ function walker:_init(pos)
   self.vel = vec(0, 0)
   self.left = false
   self.cooldown = 100
+  self.life = 3
   
   self.walk_cooldown = 50
   self.walk_dist = 50
@@ -462,15 +465,14 @@ function walker:walk_towards(
   end
 end
 
-
 function walker:swing(bullets)
   self.vel = vec(0, 0)
   self.cooldown = 100
   local bullet_offset =
       ternary(
           self.left,
-          vec(8, 0),
-          vec(-8, 0))
+          vec(-8, 0),
+          vec(8, 0))
   add(bullets,
       bullet(
           anim(16, 20, false,
@@ -491,13 +493,18 @@ function walker:update(
   -- measure distance
   local direc = player.pos -
       self.pos
-  local attack_dist = 0.01
+  local attack_dist = 8
   local wants_attack =
       direc:mag() <= attack_dist
   
   -- states
   if not wants_attack then
     self:walk_towards(player)
+    if self.vel.x < 0 then
+      self.left = true
+    elseif self.vel.x > 0 then
+      self.left = false
+    end
   elseif self.cooldown <= 0 then
     self:swing(bullets)
   end
@@ -506,8 +513,7 @@ function walker:update(
 end
 
 function walker:draw()
-  
-  print(self.cooldown, 0, 100)
+  print(self.vel.x, 0, 100)
   spr(1, self.pos.x,
       self.pos.y,
       1, 1,
@@ -527,6 +533,9 @@ function player:_init(pos)
   self.life = 3
   self.invuln_cooldown = 100
   self.left = false
+  
+  self.walk_cooldown = 0
+  self.swing_cooldown = 0
 end
 
 function player:vulnerable()
@@ -535,7 +544,19 @@ function player:vulnerable()
       <= 0)
 end
 
-function player:update(bullets)
+function player:can_walk()
+  return (
+      self.walk_cooldown
+      <= 0)
+end
+
+function player:can_swing()
+  return (
+      self.swing_cooldown
+      <= 0)
+end
+
+function player:walk()
   self.vel = vec(0, 0)
 
   local direc = vec(0, 0)
@@ -546,10 +567,54 @@ function player:update(bullets)
   if (btn(⬇️)) direc.y = 1
   
   direc = direc:normalized()
+  
+  if direc.x < 0 then
+    self.left = true
+  elseif direc.x > 0 then
+    self.left = false
+  end
 
   local speed = 0.3
   self.vel = direc * speed
+end
+
+function player:swing(bullets)
+  self.swing_cooldown = 100
+  self.walk_cooldown = 20
   
+  local bullet_offset =
+      ternary(
+          self.left,
+          vec(-8, 0),
+          vec(8, 0))
+  add(bullets,
+      bullet(
+          anim(16, 20, false,
+               6),
+          self.pos +
+              bullet_offset,
+          vec(0, 0),
+          30,
+          --[[is_enemy]]false,
+          self.left))
+end
+
+function player:update(bullets)  
+  self.swing_cooldown = max(0,
+      self.swing_cooldown - 1)
+  self.walk_cooldown = max(0,
+      self.walk_cooldown - 1)
+
+  if self:can_walk() then
+    self:walk()
+  end
+  
+  if self:can_swing() and
+      btnjp(🅾️)
+  then
+    self:swing(bullets)
+  end
+
   self.pos += self.vel
 end
 
@@ -631,9 +696,9 @@ __gfx__
 00000000999999996666666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000999999996666666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-06666660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000066666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000666666000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000006666660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+08888880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000088888800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000888888000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000008888880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000066666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000088888800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
