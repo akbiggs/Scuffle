@@ -8,9 +8,41 @@ function ternary(cond, x, y)
   return y
 end
 
+-- math helpers
+
 -- sin but -0.5 to 0.5
 function nsin(t)
   return sin(t) - 0.5
+end
+
+function sign(x)
+  if (x < 0) return -1
+  return 1
+end
+
+function clamp(x, xmin, xmax)
+  if (x < xmin) return xmin
+  if (x > xmax) return xmax
+  return x
+end
+
+function in_range(x, xmin, xmax)
+  return x >= xmin and x <= xmax
+end
+
+function wrap_idx(i, size)
+  i = i % (size + 1)
+  if (i == 0) return 1
+  return i
+end
+
+-- push |x| towards target |t|
+-- by distance |d|
+function push_towards(x, t, d)
+  d = abs(d)
+  if (abs(t - x) <= d) return t
+  if (t < x) return x - d
+  return x + d
 end
 
 -- class helpers (thanks dan!)
@@ -170,38 +202,6 @@ function vec:push_towards(t, d)
                    dvec.x),
       push_towards(self.y, t.y,
                    dvec.y))
-end
-
--- math helpers
-
-function sign(x)
-  if (x < 0) return -1
-  return 1
-end
-
-function clamp(x, xmin, xmax)
-  if (x < xmin) return xmin
-  if (x > xmax) return xmax
-  return x
-end
-
-function in_range(x, xmin, xmax)
-  return x >= xmin and x <= xmax
-end
-
-function wrap_idx(i, size)
-  i = i % (size + 1)
-  if (i == 0) return 1
-  return i
-end
-
--- push |x| towards target |t|
--- by distance |d|
-function push_towards(x, t, d)
-  d = abs(d)
-  if (abs(t - x) <= d) return t
-  if (t < x) return x - d
-  return x + d
 end
 
 -- table helpers
@@ -457,10 +457,10 @@ function bullet:_init(
       8, 8)
   -- how many ticks before the
   -- bullet becomes deadly?
-  self.deadly_start = props.deadly_start or life
+  self.deadly_start = props.deadly_start or 30000
   -- how many ticks before the
   -- bullet stops being deadly?
-	  self.deadly_end = props.deadly_end or 0
+	  self.deadly_end = props.deadly_end or -30000
 
   self.anim = anim
   self.pos = vec(pos)
@@ -506,11 +506,10 @@ end
 
 function bullet:reflect()
   self.vel = -self.vel
-  self.is_enemy =
-      not self.is_enemy
+  self.is_enemy = not self.is_enemy
   -- give a slight speedup
   -- for satisfaction
-  self.vel *= 2
+--  self.vel *= 1.2
   -- only allow one reflection
   self.reflectable = false
   -- add some more life so it
@@ -687,7 +686,7 @@ function imp:shoot(bullets)
       self.left,
       vec(-8, 0),
       vec(8, 0))
-  local speed = 0.8
+  local speed = 1.2
   local vel = ternary(
       self.left,
       vec(-speed, 0),
@@ -717,7 +716,7 @@ function imp:move_to_attack()
   if self.pos == self.attack_pos
   then
     self.attack_pos = nil
-    self.windup_time = 50
+    self.windup_time = 25
   end
 end
 
@@ -740,8 +739,6 @@ function imp:align_with_player(
 		  self.attack_pos = vec(
 		      self.pos.x,
 		      player.pos.y)
-		else
-
 		end
 end
 
@@ -947,7 +944,8 @@ function cam:_init(p)
   self.pos = vec(0, 0)
   self.min = vec(0, 0)
   self.max = vec(128, 0)
-  self.center = vec(128, 128) / 2
+  self.center =
+      vec(128, 128) / 2
 end
 
 function cam:update()
@@ -987,6 +985,8 @@ function reset()
     walker(vec(50, 80)),
     imp(vec(100, -5),
         --[[left=]]true),
+    imp(vec(8, -10),
+        --[[left=]]false)
   }
   state.bullets = {}
   state.particles = {}
@@ -1023,11 +1023,8 @@ function _update60()
     do
       if b != ob and
          ob.reflectable and
-         ((b.is_enemy and
-           not ob.is_ememy) or
-          (ob.is_enemy and
-           not b.is_enemy)) and
-         ob:collide(b)
+         b.is_enemy != ob.is_enemy and
+         b:collide(ob)
       then
         ob:reflect()
       end 
@@ -1088,6 +1085,7 @@ function draw_ui()
   spr(15,
       114 + nsin(time()) * 1.8,
       4)
+
   print(state.player.life)
 end
 
