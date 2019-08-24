@@ -736,9 +736,12 @@ function tile_gen:_init()
 end
 
 function tile_gen:draw()
+  rectfill(0,4*8,128,12*8-1,13)
+  clip(0,0,128,14*8)
   for d in all(self.deets) do
     spr(d.t, d.x, d.y)
   end
+  clip()
 end
 __gfx__
 00000000999999996666666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
