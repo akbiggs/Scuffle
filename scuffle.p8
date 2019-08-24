@@ -560,7 +560,6 @@ function player:draw()
 end
 
 function reset()
-  -- mock
   state.player = player(
       vec(20, 20))
   
