@@ -430,18 +430,18 @@ function walker:_init(pos)
   self.pos = vec(pos)
   self.vel = vec(0, 0)
   self.left = false
-  self.cooldown = 100
+  self.swing_cooldown = 100
   self.life = 3
   
   self.walk_cooldown = 50
   self.walk_dist = 50
+  
+  self.hitstun_cooldown = 0
 end
 
 function walker:walk_towards(
     player)
   self.vel = vec(0, 0)
-  self.walk_cooldown = max(0,
-      self.walk_cooldown - 1)
   if self.walk_cooldown > 0
   then
     return
@@ -467,7 +467,7 @@ end
 
 function walker:swing(bullets)
   self.vel = vec(0, 0)
-  self.cooldown = 100
+  self.swing_cooldown = 100
   local bullet_offset =
       ternary(
           self.left,
@@ -485,15 +485,8 @@ function walker:swing(bullets)
           self.left))
 end
 
-function walker:update(
+function walker:run_ai(
     player, bullets)
-  if player.life <= 0 then
-    return
-  end
-
-  self.cooldown = max(0,
-      self.cooldown - 1)
-  
   -- measure distance
   local direc = player.pos -
       self.pos
@@ -509,10 +502,31 @@ function walker:update(
     elseif self.vel.x > 0 then
       self.left = false
     end
-  elseif self.cooldown <= 0 then
+  elseif self.swing_cooldown
+         <= 0 then
     self:swing(bullets)
   end
+end
+
+function walker:update(
+    player, bullets)
+  if player.life <= 0 then
+    return
+  end
+
+  self.swing_cooldown = max(0,
+      self.swing_cooldown - 1)
+  self.walk_cooldown = max(0,
+      self.walk_cooldown - 1)
+  self.hitstun_cooldown = max(0,
+      self.hitstun_cooldown - 1)
   
+  if self.hitstun_cooldown
+     <= 0
+  then
+    self:run_ai(player, bullets)
+  end
+
   self.pos += self.vel
 end
 
@@ -526,7 +540,6 @@ end
 
 -- player
 
--- the player character
 local player = class.build()
 
 function player:_init(pos)
@@ -674,11 +687,19 @@ function _update60()
       for e in all(
           state.enemies)
       do
-        b:collide(e)
+        if b:collide(e)
+        then
+          e.invuln_cooldown =
+              50
+          e.hitstun_cooldown =
+              100
+        end
       end
     end
   end
 
+  state.enemies = filter_alive(
+      state.enemies)
   state.bullets = filter_alive(
       state.bullets)
 end
