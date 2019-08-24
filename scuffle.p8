@@ -10,6 +10,11 @@ end
 
 -- math helpers
 
+-- is x divisible by d
+function divby(d, x)
+  return x % d == 0
+end
+
 -- sin but -0.5 to 0.5
 function nsin(t)
   return sin(t) - 0.5
@@ -427,8 +432,9 @@ function filter_alive(xs)
   return alive 
 end
 -->8
--- bullets (inc. game loop)
+-- bullets and pickups
 
+-- bullet
 local bullet = class.build()
 
 function bullet:_init(
@@ -585,8 +591,52 @@ function update_bullets(state)
     end
   end
 end
+
+-- health pickup
+local health = class.build()
+
+function health:_init(pos)
+  self.type = type
+  self.pos = pos
+  self.life = 400
+end
+
+function health:update(player)
+  self.life = max(
+      0, self.life - 1)
+  
+  local hb = hbox(
+      self.pos,
+      --[[size=]]vec(8, 8))
+  local phb = hbox(
+      player.pos,
+      --[[size=]]vec(8, 8))
+  
+  if hb:intersects(phb)
+  then
+    self.life = 0
+    player.life = min(
+        player.max_life,
+        player.life + 2)
+  end
+end
+
+function health:draw()
+  -- flicker towards end of life
+  local draw =
+      self.life > 200 or
+      (self.life > 100 and
+       self.life % 3 != 0) or
+      (self.life % 2 != 0)
+  if draw
+  then
+		  spr(31, self.pos.x,
+		      self.pos.y)
+  end
+end	
+
 -->8
--- enemies + player
+-- enemies, waves, player
 
 local movement_min = vec(
     0, 4 * 8 - 4)
@@ -835,19 +885,148 @@ end
 
 -- todo!!!!
 
+-- seeker
+
+local seeker = class.build()
+
+function seeker:_init(pos)
+  self.pos = vec(pos)
+  self.vel = vec(0, 0)
+  
+  self.life = 4
+  self.tail_length = 4
+  self.separation = 12
+  self.speed = 0.35
+  self.invuln_cooldown = 0
+  -- not used but necessary
+  self.hitstun_cooldown = 0
+  
+  -- tail is a list of previous
+  -- positions. the first elt
+  -- is the furthest position,
+  -- the last elt is the current
+  -- position
+  self.tail = {}
+  for i=self:tail_end_idx(),1,-1
+  do
+    add(self.tail,
+        vec(self.pos.x,
+            self.pos.y - self.speed))
+  end
+end
+
+function seeker:tail_end_idx()
+  return self.tail_length * 
+      self.separation
+end
+
+function seeker:update(
+    player, bullets)
+  self.invuln_cooldown = max(0,
+      self.invuln_cooldown - 1)
+  self.hitstun_cooldown = max(0,
+      self.hitstun_cooldown - 1)
+
+  local direc = player.pos -
+      self.pos
+  
+  -- push the tail back
+  local end_idx =
+      self:tail_end_idx()
+  for i=end_idx,2,-1
+  do
+    self.tail[i] =
+        self.tail[i-1]
+  end
+  
+  -- put the new position at
+  -- the front of the tail
+  self.pos =
+      self.pos:push_towards(
+          player.pos,
+          self.speed)
+  self.tail[1] = self.pos
+  
+  -- to do collisions with the
+  -- eye, put a bullet in the
+  -- eye for one frame
+  add(bullets,
+      bullet(
+          anim_single(0),
+          self.pos,
+          --[[vel=]]vec(0, 0),
+          --[[life=]]1,
+          --[[is_enemy=]]true,
+          --[[left=]]false,
+          {
+            size=vec(4, 4),
+          }))
+end
+
+function seeker:draw()
+  local end_idx =
+      self:tail_end_idx()
+  for i=end_idx,1,-1
+  do
+    local sprid = 27
+    local flip_x = false
+    local flip_y = false
+    
+    local pos = vec(
+        self.tail[i])
+    
+    if i == end_idx
+    then
+      local last_tail =
+          self.tail[end_idx]
+      local second_last_tail =
+          self.tail[end_idx-1]
+      if last_tail.x < second_last_tail.x
+      then
+        flip_x = true
+      else
+      end
+
+      if last_tail.y > second_last_tail.y
+      then
+        flip_y = true
+      end
+      sprid = 30
+    elseif i > 1
+    then
+      sprid = 29
+    else
+      print(self.life)
+    end 
+
+    if i == 1 or 
+       divby(self.separation, i)
+    then    
+	     spr(sprid, pos.x, pos.y,
+	         1, 1,
+	         flip_x, flip_y)
+    end
+  end
+end
+
 -- enemy waves
 
 local wave = class.build()
 
 function wave:_init(
-  startx, enemies, lock_cam)
+    startx, enemies, props)
+  props = props or {}
+
   -- camera offset, not player
   self.startx = startx
   self.enemies = enemies
   self.spawned = false
+  self.spawn_health = ternary(
+      props.spawn_health != nil,
+      props.spawn_health, false)
   self.lock_cam = ternary(
-      lock_cam != nil,
-      lock_cam, true)
+      props.lock_cam != nil,
+      props.lock_cam, true)
   
   -- add startx to enemy pos
   -- to make calculations
@@ -864,7 +1043,7 @@ function wave:done()
 end
 
 function wave:update(
-    cam, enemies)
+    cam, enemies, pickups)
   if (self:done()) return
   
   if not self.spawned and
@@ -877,8 +1056,19 @@ function wave:update(
     end
   elseif self.spawned
   then
+    old_enemy_count =
+        #self.enemies
     self.enemies = filter_alive(
         self.enemies)
+    if old_enemy_count > 0 and
+       #self.enemies == 0 and
+       self.spawn_health
+    then
+      add(pickups,
+          health(
+              vec(self.startx + 100,
+                  60)))
+    end
   end
 end
 
@@ -903,7 +1093,8 @@ local player = class.build()
 function player:_init(pos)
   self.pos = vec(pos)
   self.vel = vec(0, 0)
-  self.life = 10
+  self.life = 6
+  self.max_life = 6
   self.invuln_cooldown = 100
   self.left = false
   self.shirt_color = 9 + rnd(4)
@@ -1104,17 +1295,27 @@ function reset()
     wave(20, {
       walker(vec(110, 30)),
     		walker(vec(10, 60)),
-    }), wave(50, {
+    }),
+    wave(50, {
       imp(vec(8, -5),
           --[[left=]]false),
       imp(vec(112, -15),
           --[[left=]]true),
+    }),
+    wave(80, {
+      seeker(vec(64, -5)),
+    }, {
+      spawn_health=true
     }),
   }
 
   state.enemies = {}
   state.bullets = {}
   state.particles = {}
+  state.pickups = {}
+
+  -- show the prompt to move at
+  -- the start of the level
   state.prompt_move_dist = 20
 end
 
@@ -1134,7 +1335,8 @@ function _update60()
   for w in all(state.waves)
   do
     w:update(state.camera,
-             state.enemies)
+             state.enemies,
+             state.pickups)
   end
   
   -- camera
@@ -1173,6 +1375,12 @@ function _update60()
   -- bullets
   update_bullets(state)
   
+  -- pickups
+  for pi in all(state.pickups)
+  do
+    pi:update(p)
+  end
+
   -- particles
   for p in all(state.particles)
   do
@@ -1216,10 +1424,6 @@ end
 function _draw()
   cls()
 
-  -- reset camera from previous
-  -- frame before ui
-  camera(0, 0)
-  draw_ui()
   state.camera:draw()
 
   map(0, 0, 0, 0)
@@ -1243,24 +1447,34 @@ function _draw()
   do
     b:draw()
   end
+  
+  for pi in all(state.pickups)
+  do
+    pi:draw()
+  end
+  
+  -- ui is screen-space, so
+  -- reset camera before drawing
+  camera(0, 0)
+  draw_ui()
 end
 __gfx__
 00000000006666600000000000666660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000000000068686000000000008868800000000000000000000000000000000000a88a0000000000000000000000000000000000000000000000000000088000
 00700700006666600008680000666660000000000000000000000000000000000088800900000000000000000000000000000000000000000000999900088800
-00077000066666600006600006666660000000000000000000000000000000000088809000000000000000000000000000000000000000000000900088888880
+00077000006666600006600000666660000000000000000000000000000000000088809000000000000000000000000000000000000000000000900088888880
 00077000006666000099990000666600000000000000000000000000000000002088009900000000000000000000000000000000000000009999999988888888
 00700700009999000099990000999900000000000000000000000000000000000288890000000000000000000000000000000000000000000000900088888880
 00000000009999000099990000999900000000000000000000000000000000000088000000000000000000000000000000000000000000000000999900088800
 00000000008008000080080000800800000000000000000000000000000000000800800000000000000000000000000000000000000000000000000000088000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-08888880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000088888800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000888888000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000008888880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000088888800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+08888880000000000000000000000000000000000000000000000000000000000000000000000000000000000022220000222200000000000000000000020200
+00000000088888800000000000000000000000000000000000000000000000000000000000000000000000000288882002222220000220000000222000282820
+000000000000000008888880000000000000000000000000000000000000000000000000000000000000000028a66a8222222222002882000002882002888882
+000000000000000000000000088888800000000000000000000000000000000000000000000000000000000028a66a8222288222002882000002822002888882
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000288882002222220000220000028200000288820
+00000000000000000000000000000000088888800000000000000000000000000000000000000000000000000022220000222200000000000022000000028200
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000
 dddddddddddddddd11111ddd02500000250000002dd2100001100000002000000220000000000000000000000000000000000000000000000000000000000000
 1ddd111111ddd111111111110250000025000000022100001551000002d200002dd2000000000000000000000000000000000000000000000000000000000000
 11111111111d111112dd1111250000000250000005510000055000002ddd20000111000000000000000000000000000000000000000000000000000000000000
