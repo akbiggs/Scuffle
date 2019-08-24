@@ -8,6 +8,11 @@ function ternary(cond, x, y)
   return y
 end
 
+-- sin but -0.5 to 0.5
+function nsin(t)
+  return sin(t) - 0.5
+end
+
 -- class helpers (thanks dan!)
 
 local class = {}
@@ -763,11 +768,6 @@ function imp:update(
 end
 
 function imp:draw()
-  print(self.windup_time)
-  print(self.pos.y)
-  if self.attack_pos then
-    print(self.attack_pos.y)
-  end
   -- todo: windup sprite
   spr(8, self.pos.x, self.pos.y,
       1, 1,
@@ -1033,6 +1033,8 @@ function _update60()
       end 
     end
 
+    -- handle damage and
+    -- pushback
     local pushback =
         ternary(
             bullet.left,
@@ -1078,9 +1080,26 @@ function _update60()
       state.particles)
 end
 
+function draw_ui()
+  -- prompt the player to
+  -- advance if the camera can
+  -- move but hasn't in a while
+  -- (todo: ^)
+  spr(15,
+      114 + nsin(time()) * 1.8,
+      4)
+  print(state.player.life)
+end
+
 function _draw()
   cls()
+
+  -- reset camera from previous
+  -- frame before ui
+  camera(0, 0)
+  draw_ui()
   state.camera:draw()
+
   map(0, 0, 0, 0)
   random_tiles:draw()
 
@@ -1089,7 +1108,6 @@ function _draw()
     e:draw()
   end
 
-  print(state.player.life)
   if state.player.life > 0 then  
     state.player:draw()
   end
