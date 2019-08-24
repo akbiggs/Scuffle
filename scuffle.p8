@@ -1367,7 +1367,7 @@ cam = class.build()
 
 function cam:_init(p)
   self.p = p
-  self.give = -20
+  self.give = -10
   self.pos = vec(0, 0)
   self.min = vec(0, 0)
   self.max = vec(128, 0)
@@ -1378,14 +1378,19 @@ end
 function cam:update()
   local target =
       self.p.pos - self.center
+  local target_cam =
+      self.pos
+        :clamp(
+		        target - self.give,
+		        target + self.give)
+        :clamp(
+          self.min,
+          self.max)
+
   self.pos =
-    self.pos
-      :clamp(
-		      target - self.give,
-		      target + self.give)
-      :clamp(
-        self.min,
-        self.max)
+      self.pos:push_towards(
+        target_cam,
+        1)
 end
 
 function cam:draw()
@@ -1501,9 +1506,9 @@ function _update60()
   end
 
   -- particles
-  for p in all(state.particles)
+  for pr in all(state.particles)
   do
-    p:update()
+    pr:update()
   end
   
   -- clear dead stuff
@@ -1536,7 +1541,7 @@ function draw_ui()
     		  114 + nsin(time()) * 1.8,
       		4)
   end
-
+  
   print(state.player.life,
         0, 0, 6)
 end
