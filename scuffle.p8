@@ -606,6 +606,14 @@ function walker:draw()
       self.left)
 end
 
+-- imp
+
+-- todo!!!!
+
+-- slime
+
+-- todo!!!!
+
 -- player
 
 local player = class.build()
@@ -616,6 +624,7 @@ function player:_init(pos)
   self.life = 10
   self.invuln_cooldown = 100
   self.left = false
+  self.shirt_color = 9 + rnd(5)
   
   self.walk_cooldown = 0
   self.swing_cooldown = 0
@@ -715,9 +724,12 @@ function player:draw()
   then
     return
   end
+  
+  pal(9, self.shirt_color)
   spr(2, self.pos.x, self.pos.y,
       1, 1,
       self.left)
+  pal(9, 9)
 end
 -->8
 -- game
