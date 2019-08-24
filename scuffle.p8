@@ -675,6 +675,9 @@ function _update60()
     p:update(state.bullets)
   end
   
+  -- camera
+  state.camera:update()
+  
   -- enemies
   for e in all(state.enemies)
   do
@@ -717,6 +720,7 @@ end
 
 function _draw()
   cls()
+  state.camera:draw()
   map(0, 0, 0, 0)
   random_tiles:draw()
   print(state.player.life)
@@ -782,19 +786,43 @@ end
 cam = class.build()
 
 function cam:_init(p)
-  self.p = player
+  self.p = p
   self.give = 16
   self.pos = vec(0, 0)
+  self.min = vec(0, 0)
+  self.max = vec(128, 0)
+  self.center = vec(128, 128) / 2
 end
 
 function cam:update()
+  local function center_on(
+      target,
+      current,
+      give,
+      minimum,
+      maximum)
+    return clamp(
+      clamp(
+        current,
+        target - give,
+        target + give),
+      minimum,
+      maximum)
+  end
+
   self.pos = vec(
-	     clamp(
-          self.pos + 64
-          p.pos.x - self.give,
-          p.pos.x + self.give)
-          - 64,
-      self.pos.y)
+    center_on(
+      self.p.pos.x - self.center.x,
+      self.pos.x,
+      self.give,
+      self.min.x,
+      self.max.x),
+    center_on(
+      self.p.pos.y - self.center.y,
+      self.pos.y,
+      self.give,
+      self.min.y,
+      self.max.y))
 end
 
 function cam:draw()
