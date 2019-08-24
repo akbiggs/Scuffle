@@ -487,6 +487,10 @@ end
 
 function walker:update(
     player, bullets)
+  if player.life <= 0 then
+    return
+  end
+
   self.cooldown = max(0,
       self.cooldown - 1)
   
@@ -557,8 +561,6 @@ function player:can_swing()
 end
 
 function player:walk()
-  self.vel = vec(0, 0)
-
   local direc = vec(0, 0)
 
   if (btn(⬅️)) direc.x = -1
@@ -604,6 +606,9 @@ function player:update(bullets)
       self.swing_cooldown - 1)
   self.walk_cooldown = max(0,
       self.walk_cooldown - 1)
+  self.invuln_cooldown = max(0,
+      self.invuln_cooldown - 1)
+  self.vel = vec(0, 0)
 
   if self:can_walk() then
     self:walk()
@@ -640,14 +645,15 @@ end
 
 function _update60()
   -- player
-  state.player:update(
-      state.bullets)
+  local p = state.player
+  if p.life > 0 then
+    p:update(state.bullets)
+  end
 
   -- enemies
   for e in all(state.enemies)
   do
-    e:update(state.player,
-             state.bullets)
+    e:update(p, state.bullets)
   end
   
   -- bullets
@@ -655,8 +661,13 @@ function _update60()
   do
     b:update()
     
-    if b.is_enemy then
-      b:collide(state.player)
+    if b.is_enemy and
+        p:vulnerable()
+    then
+      if b:collide(p)
+      then
+        p.invuln_cooldown = 100
+      end
     else
       for e in all(
           state.enemies)
@@ -678,9 +689,11 @@ function _draw()
   do
     e:draw()
   end
-  
-  state.player:draw()
-  
+
+  if state.player.life > 0 then  
+    state.player:draw()
+  end
+
   for b in all(state.bullets)
   do
     b:draw()
