@@ -143,6 +143,30 @@ function vec:clamp(vmin, vmax)
             vmax.y))
 end
 
+-- push a vector towards target
+-- |t| by delta |d|
+function vec:push_towards(t, d)
+  if type(d) == "table"
+  then
+    -- separate x and y deltas
+    return vec(
+        push_towards(self.x,
+                     t.x, d.x),
+        push_towards(self.y,
+                     t.y, d.y))
+  end
+  
+  local direc = t - self
+  local dvec =
+      direc:normalized() * d
+  
+  return vec(
+      push_towards(self.x, t.x,
+                   dvec.x),
+      push_towards(self.y, t.y,
+                   dvec.y))
+end
+
 -- math helpers
 
 function sign(x)
@@ -164,6 +188,15 @@ function wrap_idx(i, size)
   i = i % (size + 1)
   if (i == 0) return 1
   return i
+end
+
+-- push |x| towards target |t|
+-- by distance |d|
+function push_towards(x, t, d)
+  d = abs(d)
+  if (abs(t - x) <= d) return t
+  if (t < x) return x - d
+  return x + d
 end
 
 -- table helpers
@@ -396,7 +429,7 @@ local bullet = class.build()
 function bullet:_init(
     anim, pos, vel, life,
     is_enemy, left, props)
-  
+  props = props or {}
   if props.destroy_on_hit == nil
   then
     self.destroy_on_hit = true
@@ -413,7 +446,7 @@ function bullet:_init(
   self.deadly_start = props.deadly_start or life
   -- how many ticks before the
   -- bullet stops being deadly?
-  self.deadly_end = props.deadly_end or 0
+	  self.deadly_end = props.deadly_end or 0
 
   self.anim = anim
   self.pos = vec(pos)
@@ -422,8 +455,6 @@ function bullet:_init(
   self.life = life
   self.is_enemy = is_enemy
   self.left = left
-  self.destroy_on_hit = (
-      destroy_on_hit)
 end
 
 function bullet:update()
@@ -608,7 +639,106 @@ end
 
 -- imp
 
--- todo!!!!
+local imp = class.build()
+
+function imp:_init(pos, left)
+  self.pos = vec(pos)
+  self.vel = vec(0, 0)
+  self.left = left
+  self.life = 1
+  self.invuln_cooldown = 0
+  
+  self.windup_time = 0
+  self.attack_pos = nil
+end
+
+function imp:shoot(bullets)
+  local offset = ternary(
+      self.left,
+      vec(-8, 0),
+      vec(8, 0))
+  local speed = 0.8
+  local vel = ternary(
+      self.left,
+      vec(-speed, 0),
+      vec(speed, 0))
+  local bullet = bullet(
+      anim_single(14),
+      self.pos + offset,
+      vel,
+      100,
+      --[[is_enemy=]]true,
+      self.left)
+  add(bullets, bullet)
+end
+
+function imp:move_to_attack()
+  local speed = 0.5
+  self.pos =
+      self.pos:push_towards(
+          self.attack_pos,
+          speed)
+      
+  if self.pos == self.attack_pos
+  then
+    self.attack_pos = nil
+    self.windup_time = 50
+  end
+end
+
+function imp:align_with_player(
+    player)
+  -- move down or up towards
+	 -- the player
+		local speed = 0.3
+		self.pos =
+		    self.pos:push_towards(
+		        vec(self.pos.x,
+		            player.pos.y),
+	         speed)
+		
+		local target_distance = 20
+		local direc = player.pos -
+		    self.pos
+		if abs(direc.y) <= target_distance
+		then
+		  self.attack_pos = vec(
+		      self.pos.x,
+		      player.pos.y)
+		else
+
+		end
+end
+
+function imp:update(
+    player, bullets)
+  if self.windup_time > 0
+  then
+    self.windup_time -= 1
+    if self.windup_time == 0
+    then
+      self:shoot(bullets)
+    end
+  elseif self.attack_pos != nil
+  then
+    self:move_to_attack()
+  else
+    self:align_with_player(
+        player)
+  end
+end
+
+function imp:draw()
+  print(self.windup_time)
+  print(self.pos.y)
+  if self.attack_pos then
+    print(self.attack_pos.y)
+  end
+  -- todo: windup sprite
+  spr(8, self.pos.x, self.pos.y,
+      1, 1,
+      self.left)
+end
 
 -- slime
 
@@ -732,6 +862,79 @@ function player:draw()
   pal(9, 9)
 end
 -->8
+-- tile generation and drawing
+
+tile_gen = class.build()
+
+function tile_gen:_init()
+  self.deets = {}
+  local wall_deet_ids = {
+      35, 36, 37, 38, 53
+  }
+  local grnd_deet_ids = {
+      39, 40, 54, 55, 56
+  }
+  
+  local function rnd_in(tbl)
+    return tbl[flr(rnd(#tbl)) + 1]
+  end
+
+  local s_width = 16
+  for s = 1,flr(128 / s_width) do
+    local y = flr(rnd(8 * 8 - 4)) + 4 * 8
+    if (y >= 12 * 8 - 4) y += 8
+    local x = flr(rnd(s_width)) + s * s_width
+    local t = rnd_in(
+        ternary(
+          y < 12 * 8,
+          grnd_deet_ids,
+          wall_deet_ids))
+          
+    add(self.deets, {x = x, y = y, t = t})
+  end
+end
+
+function tile_gen:draw()
+  rectfill(0,4*8,128,12*8-1,13)
+  clip(0,0,128,14*8)
+  for d in all(self.deets) do
+    spr(d.t, d.x, d.y)
+  end
+  clip()
+end
+-->8
+-- camera
+
+cam = class.build()
+
+function cam:_init(p)
+  self.p = p
+  self.give = 16
+  self.pos = vec(0, 0)
+  self.min = vec(0, 0)
+  self.max = vec(128, 0)
+  self.center = vec(128, 128) / 2
+end
+
+function cam:update()
+  local target =
+      self.p.pos - self.center
+  self.pos =
+    self.pos
+      :clamp(
+		      target - self.give,
+		      target + self.give)
+      :clamp(
+        self.min,
+        self.max)
+end
+
+function cam:draw()
+  camera(
+      self.pos.x,
+      self.pos.y)
+end
+-->8
 -- game
 
 local state = {}
@@ -748,6 +951,8 @@ function reset()
     walker(vec(80, 30)),
     walker(vec(100, 60)),
     walker(vec(50, 80)),
+    imp(vec(100, -5),
+        --[[left=]]true),
   }
   state.bullets = {}
   state.particles = {}
@@ -850,88 +1055,15 @@ function _draw()
     b:draw()
   end
 end
--->8
--- tile generation and drawing
-
-tile_gen = class.build()
-
-function tile_gen:_init()
-  self.deets = {}
-  local wall_deet_ids = {
-      35, 36, 37, 38, 53
-  }
-  local grnd_deet_ids = {
-      39, 40, 54, 55, 56
-  }
-  
-  local function rnd_in(tbl)
-    return tbl[flr(rnd(#tbl)) + 1]
-  end
-
-  local s_width = 16
-  for s = 1,flr(128 / s_width) do
-    local y = flr(rnd(8 * 8 - 4)) + 4 * 8
-    if (y >= 12 * 8 - 4) y += 8
-    local x = flr(rnd(s_width)) + s * s_width
-    local t = rnd_in(
-        ternary(
-          y < 12 * 8,
-          grnd_deet_ids,
-          wall_deet_ids))
-          
-    add(self.deets, {x = x, y = y, t = t})
-  end
-end
-
-function tile_gen:draw()
-  rectfill(0,4*8,128,12*8-1,13)
-  clip(0,0,128,14*8)
-  for d in all(self.deets) do
-    spr(d.t, d.x, d.y)
-  end
-  clip()
-end
--->8
--- camera
-
-cam = class.build()
-
-function cam:_init(p)
-  self.p = p
-  self.give = 16
-  self.pos = vec(0, 0)
-  self.min = vec(0, 0)
-  self.max = vec(128, 0)
-  self.center = vec(128, 128) / 2
-end
-
-function cam:update()
-  local target =
-      self.p.pos - self.center
-  self.pos =
-    self.pos
-      :clamp(
-		      target - self.give,
-		      target + self.give)
-      :clamp(
-        self.min,
-        self.max)
-end
-
-function cam:draw()
-  camera(
-      self.pos.x,
-      self.pos.y)
-end
 __gfx__
 00000000006666600000000000666660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000006868600000000000886880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00700700006666600006600000666660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00077000066666600006600006666660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00077000006666000099990000666600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00700700009999000099999000999900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000009999000099990000999900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000008008000080080000800800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000068686000000000008868800000000000000000000000000000000000a88a0000000000000000000000000000000000000000000000000000088000
+00700700006666600006600000666660000000000000000000000000000000000088800900000000000000000000000000000000000000000000999900088800
+00077000066666600006600006666660000000000000000000000000000000000088809000000000000000000000000000000000000000000000900088888880
+00077000006666000099990000666600000000000000000000000000000000002088009900000000000000000000000000000000000000009999999988888888
+00700700009999000099999000999900000000000000000000000000000000000288890000000000000000000000000000000000000000000000900088888880
+00000000009999000099990000999900000000000000000000000000000000000088000000000000000000000000000000000000000000000000999900088800
+00000000008008000080080000800800000000000000000000000000000000000800800000000000000000000000000000000000000000000000000000088000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 08888880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000088888800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
