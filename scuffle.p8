@@ -311,7 +311,7 @@ function anim:_init(
   self.end_sprid = end_sprid
   self.is_loop = is_loop
   self.duration = duration
-  self.offset = offset
+  self.offset = offset or vec(0,0)
   self.ticks = 0
     
   self.sprid = start_sprid
@@ -370,8 +370,8 @@ end
 function anim:draw(pos, flip_x)
   spr(
     self.sprid,
-    pos.x,
-    pos.y,
+    pos.x + self.offset.x,
+    pos.y + self.offset.y,
     1, 1,
     flip_x)
 end
@@ -764,7 +764,6 @@ function walker:walk_towards(
 end
 
 function walker:swing(bullets)
-  self.swing_cooldown = 100
   local bullet_pos =
     vec(
       ternary(self.left, -6, 6),
@@ -774,12 +773,15 @@ function walker:swing(bullets)
   local anim =
   		anim_chain {
 		    anim_single(
-		      66, 8, vec(0, 1)),
-		    anim_single(66, 52),
+		      66, 4, vec(0, 1)),
+		    anim_single(66, 40),
 		    anim_single(67, 2),
 		    anim_single(64, 20),
     }
-     
+
+  self.swing_cooldown = anim.duration
+  self.walk_cooldown = anim.duration
+
   add(bullets,
       bullet(
           anim,
