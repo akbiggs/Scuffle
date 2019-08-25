@@ -368,9 +368,7 @@ end
 function anim:draw(pos, flip_x)
   spr(
     self.sprid,
-    pos.x + (
-      ternary(flip_x, -1, 1)
-        * self.offset.x),
+    pos.x + self.offset.x,
     pos.y + self.offset.y,
     1, 1,
     flip_x)
@@ -929,24 +927,6 @@ function imp:_init(pos, left)
   self.windup_time = 0
   self.attack_pos = nil
   self.throw_cooldown = 0
-  self.anim =
-    anim(74,75,true,5)
-  self.windup_anim =
-    anim_chain {
-      anim_single(
-        14, 6, vec(2, 0)),
-      anim_single(14, 6),
-      anim_single(
-        14, 20, vec(-1, 0)),
-      anim_single(
-        14, 4, vec(1, 0)),
-      anim_single(
-        14, 2, vec(2, 0)),
-      anim_single(
-        14, 1, vec(4, 0)),
-      anim_single(
-        14, 1, vec(6, 0)),
-    }
 end
 
 function imp:shoot(bullets)
@@ -985,9 +965,7 @@ function imp:move_to_attack()
   if self.pos == self.attack_pos
   then
     self.attack_pos = nil
-    self.windup_anim:reset()
-    self.windup_time =
-      self.windup_anim.duration
+    self.windup_time = 25
   end
 end
 
@@ -1015,7 +993,6 @@ end
 
 function imp:update(
     player, bullets)
-  self.anim:update()
   if self.throw_cooldown > 0
   then
     self.throw_cooldown -= 1
@@ -1027,7 +1004,6 @@ function imp:update(
     then
       self:shoot(bullets)
     end
-    self.windup_anim:update()
   elseif self.attack_pos != nil
   then
     self:move_to_attack()
@@ -1038,23 +1014,10 @@ function imp:update(
 end
 
 function imp:draw()
-  spr(5,
-    self.pos.x,
-    max(32, self.pos.y) + 2)
-
-  palt(0, false)
-  palt(14, true)
-  
-  self.anim:draw(
-    self.pos, self.left)
-    
-  palt(0, true)
-  palt(14, false)
-
-  if self.windup_time > 0 then
-    self.windup_anim:draw(
-      self.pos, self.left)
-  end
+  -- todo: windup sprite
+  spr(8, self.pos.x, self.pos.y,
+      1, 1,
+      self.left)
 end
 
 -- slime
@@ -1569,44 +1532,38 @@ end
 
 tile_gen = class.build()
 
-function tile_gen:_init(
-    cam, width)
-  self.cam = cam
-
+function tile_gen:_init()
   self.deets = {}
+  local wall_deet_ids = {
+      35, 36, 37, 38, 53
+  }
   local grnd_deet_ids = {
       39, 40, 54, 55, 56
   }
 
-  -- slice width
-  self.s_width = 16
-  for s = 1,flr(width / self.s_width)
-  do
-    add(self.deets,
-      {
-        x = 
-          flr(rnd(self.s_width))
-          + s * self.s_width,
-        y =
-          flr(rnd(8 * 8 - 4))
-          + 4 * 8,
-        t =
-          rnd_in(grnd_deet_ids),
-      })
+  local s_width = 16
+  for s = 1,flr(128 / s_width) do
+    local y = flr(rnd(8 * 8 - 4)) + 4 * 8
+    if (y >= 12 * 8 - 4) y += 8
+    local x = flr(rnd(s_width)) + s * s_width
+    local t = rnd_in(
+        ternary(
+          y < 12 * 8,
+          grnd_deet_ids,
+          wall_deet_ids))
+          
+    add(self.deets, {x = x, y = y, t = t})
   end
 end
 
 function tile_gen:draw()
-  local x = self.cam.pos.x
-  rectfill(x,0,x+127,4*8-1,9)
-  rectfill(x,4*8,x+127,12*8-1,13)
-  for i =
-    flr(x / self.s_width) - 1,
-    flr((x + 128) / self.s_width) + 1
-	 do
-	   local d = self.deets[i]
-	   if (d) spr(d.t, d.x, d.y)
+  rectfill(0,0,128*4,4*8-1,9)
+  rectfill(0,4*8,128*4,12*8-1,13)
+  clip(0,0,128,14*8)
+  for d in all(self.deets) do
+    spr(d.t, d.x, d.y)
   end
+  clip()
 end
 -->8
 -- camera
@@ -1768,11 +1725,6 @@ function init_stage(state)
   
   state.waves = get_waves(
       state.stage)
-      
-  state.decals =
-      tile_gen(
-        state.camera,
-        state.stage_end)
 end
 
 -- call this the first time
@@ -1837,6 +1789,8 @@ function _init()
   -- uncomment this to
   -- skip long intro
   --restart_stage(state)
+  
+  random_tiles = tile_gen()
 end
 
 -- a bunch of junk to align
@@ -2114,7 +2068,7 @@ function _draw()
   pal(9, palette.sky)
   pal(13, palette.ground)
 
-  state.decals:draw()
+  random_tiles:draw()
   map(0, 0, 0, 0)
   
   pal(1, 1)
@@ -2174,14 +2128,14 @@ ddd222ddddddd222dd2dddddd2dddddddddd222d0000000000000000000000000000000000000000
 ddd2222ddddd2222dd2dddddd2dddddddddd222d00000000000000000000000000000000111111111111d1110000000000000000000000000000000000000000
 dddd222ddddd222ddd2dddddd2dddddddddd222d000000000000000000000000000000001111111111ddd1110000000000000000000000000000000000000000
 dddd222ddddd222dd2ddddddd2dddddddddd222d00000000000000000000000000000000dddddddddddddddd0000000000000000000000000000000000000000
-00000000000007770000077000077770eee555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2eeeeeeee2f88feefeeeeeeeeeeeeeeee2eeeeeeeeeeee
-00000000000076670000760000777770ee55005eeee555eeeeeeeeeeeee50eeeeeeeeeeeeeeeeeeee222f88fee22800ee880eeeeeeeeeeeeeee22eeeeeeeeeee
-00000000007767770077600000777770ee55005eee55005eeeeeeeeeee500eeeeeeeeeeeeeeeeeee2222800eee22888ef8082eeeefeee222eee22eeeeeeeeeee
-44000000476677774760000044677777e555005eee55005eeeeeeeeeee5000eeee50eeeeeeeeeeee2222888eee2228eee88222eee808222eefe222eeeeeeeeee
-46700000447777774400000047766777e55555eee555005eeee4eeeeee5555eeee5000eeeeeeeeee222288eeee22288eee82228ee8022228e80222e8eeeeeeee
-00670000007777770000000000677677e55555eee55555eeee764eeee55455eee555555eee5555ee22e2888eee2e88eeee2222eeef82228ee808228eefeeeeee
-00067700007777700000000000006767e55555eee55555eee76eeeee557745ee5555455e5555455e2eee88eeeee8e8eeeee2228eeee82228ef882228e802228e
-00000670000777700000000000000677555555ee555555ee76eeeeee776eeeee777774ee777774eeeee8e8eeeeeeeeeeeeee2eeeeeeeeeeeeeeeeeeeef822228
+00000000000007770000077000077770eee555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2eeeeeeeeeeeeeeefeeeeeeeeeeeeeeee2eeeeeeeeeeee
+00000000000076670000760000777770ee55005eeee555eeeeeeeeeeeee50eeeeeeeeeeeeeeeeeeee222f88feee2f88fe880eeeeeeeeeeeeeee22eeeeeeeeeee
+00000000007767770077600000777770ee55005eee55005eeeeeeeeeee500eeeeeeeeeeeeeeeeeee2222800eee22800ef8082eeeefeee222eee22eeeeeeeeeee
+44000000476677774760000044677777e555005eee55005eeeeeeeeeee5000eeee50eeeeeeeeeeee2222888eee22888ee88222eee808222eefe222eeeeeeeeee
+46700000447777774400000047766777e55555eee555005eeee4eeeeee5555eeee5000eeeeeeeeee222288eeee2228eeee82228ee8022228e80222e8eeeeeeee
+00670000007777770000000000677677e55555eee55555eeee764eeee55455eee555555eee5555ee22e2888eee22288eee2222eeef82228ee808228eefeeeeee
+00067700007777700000000000006767e55555eee55555eee76eeeee557745ee5555455e5555455e2eee88eeee2e88eeeee2228eeee82228ef882228e802228e
+00000670000777700000000000000677555555ee555555ee76eeeeee776eeeee777774ee777774eeeee8e8eeeee8e8eeeeee2eeeeeeeeeeeeeeeeeeeef822228
 __map__
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -2245,8 +2199,8 @@ __sfx__
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 010d00000005300000000530000000655006000000000053000000000000053000000065500655000530000000053000000005300000006550060000000000530000000000000530000000655006550005300000
 010d00001a6131a6130c6131a6130e623186130e613186130e613186130e613186130e613186131a613186130e613186130e613186131a623186130e613186130e613186130e613186130e613186231a62318623
-010d00000c550000000e5000e550000000c50009550000000e5000c55000000000000e5500000015550000000e55000000000000c550000000000009550000000e5500e5000c5500000000000095501550000000
-010d00000c550000000e5000e550000000c50009550000000e5000c55000000000000e5500000015550000000e55000000000000c550000000000009550000000e5500e5000c5500000000000155501550000000
+010d000018555000000e5001a555000000c50015555000000e5001855500000000001a5550000021555000001a555000000000018555000000000015555000001a5550e500185550000000000155551550000000
+010d000018555000000e5001a555000000c50015555000000e5001855500000000001a5550000021555000001a555000000000018555000000000015555000001a5550e500185550000000000215551550000000
 011a00200e0530e0500e0500e0500e05500000000001505315050150501505015055000000000000000000000c0530c0500c0500c0500c0550000000000000000000000000000000000000000000000000000000
 011a00200c0530c0500c0500c0500c05500000000001505315050150501505015055000002103321030210350c0530c0500c0500c0500c0550000000000000000000000000000000000000000000000000000000
 010d00001a0141a0101a0101a0101a0101a0101a0201a0201a0201a0201a0201a0201a0301a0301a0301a0301a0301a0301a0301a0301a0401a0401a0401a0401a0401a0401a0401a0501a0501a0501a0501a055
