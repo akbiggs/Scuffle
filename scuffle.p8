@@ -1038,6 +1038,10 @@ function imp:update(
 end
 
 function imp:draw()
+  spr(5,
+    self.pos.x,
+    max(32, self.pos.y) + 2)
+
   palt(0, false)
   palt(14, true)
   
