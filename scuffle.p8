@@ -312,10 +312,8 @@ function anim:_init(
   self.is_loop = is_loop
   self.duration = duration
   self.offset = offset or vec(0,0)
-  self.ticks = 0
-    
-  self.sprid = start_sprid
-  self.done = false
+
+  self:reset()
 end
 
 -- a single-frame animation
@@ -384,15 +382,19 @@ anim_chain = class.build()
 function anim_chain:_init(
     anims, is_loop)
   self.anims = anims
-  self.current = 1
   self.is_loop = is_loop
-  self.done = false
-  self.sprid = anims[1].sprid
+  self:reset()
 
   self.duration = 0
   for anim in all(anims) do
     self.duration += anim.duration
   end
+end
+
+function anim_chain:reset()
+  self.current = 1
+  self.done = false
+  self.sprid = self.anims[1].sprid
 end
 
 function anim_chain:anim()
@@ -738,8 +740,15 @@ function walker:_init(pos)
   self.invuln_cooldown = 0
   self.hitstun_cooldown = 0
   
-  self.anim_idx = 1
-  self.anim_len = 60
+  self.stand_anim =
+    anim_single(68)
+  self.walk_anim =
+    anim_chain({
+      anim_single(69, 30),
+      anim_single(68, 30),
+    },
+    true)
+  self.anim = self.stand_anim
 end
 
 function walker:walk_towards(
@@ -868,12 +877,13 @@ function walker:update(
       movement_max)
 
   if self.vel:mag() > 0 then
-    self.anim_idx =
-      wrap_idx(
-        self.anim_idx + 1,
-        self.anim_len)
+    if self.anim != self.walk_anim
+    then
+      self.walk_anim:reset()
+    end
+    self.anim = self.walk_anim
   else
-    self.anim_idx = 1
+    self.anim = self.stand_anim
   end
 end
 
@@ -887,26 +897,17 @@ function walker:draw()
   palt(14, true)
   palt(0, false)
 
-  -- selet walk anim frame
-  local sprid = ternary(
-    self.vel:mag() > 0 and
-      self.anim_idx <=
-        self.anim_len / 2,
-    69,
-    68)
-  spr(sprid,
-    self.pos.x,
-    self.pos.y,
-    1, 1,
-    -- flip_x
-    self.left)
+  self.anim:draw(
+    self.pos, self.left)
 
   -- overlay dragged sword
-  spr(70,
-    self.pos.x,
-    self.pos.y,
-    1, 1,
-    self.left)
+  if not self.bullet then
+		  spr(70,
+		    self.pos.x,
+		    self.pos.y,
+		    1, 1,
+		    self.left)
+		end
 
   palt(14, false)
   palt(0, true)
