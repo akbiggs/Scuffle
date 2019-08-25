@@ -1747,6 +1747,7 @@ function update_music_intro(
        >= 8
     then
       state.skip_intro = true
+      music(5)
     end
   end
   
