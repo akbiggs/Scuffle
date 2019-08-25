@@ -1252,7 +1252,6 @@ player.skin_colors = {
 player.hair_colors = {
   0, 6, 10
 }
-player.walk_anim_len = 20
 
 function player:_init(pos)
   self.pos = vec(pos)
@@ -1270,9 +1269,17 @@ function player:_init(pos)
   self.hair_color =
       rnd_in(player.hair_colors)
 
-  self.walk_anim_idx = 1
-  self.walk_anim_len =
-      player.walk_anim_len
+  self.stand_anim =
+    anim_single(1)
+  self.walk_anim =
+    anim_chain(
+      {
+		      anim_single(
+		        2, 5, vec(0, -1)),
+		      anim_single(1, 5),
+		    },
+		    true)
+  self.anim = self.stand_anim
 end
 
 function player:vulnerable()
@@ -1379,21 +1386,24 @@ function player:update(
           movement_max.y))
 
   if self.vel:mag() > 0 then
-    self.walk_anim_idx =
-		    wrap_idx(
-        self.walk_anim_idx + 1,
-        self.walk_anim_len)
+    if self.anim != self.walk_anim
+    then
+      self.walk_anim:reset()
+    end
+    self.anim = self.walk_anim
   else
-    self.walk_anim_idx = 1
+    self.anim = self.stand_anim
   end
-
+  self.anim:update()
 end
 
 function player:draw()
+   -- shadow
   spr(5,
     self.pos.x,
     self.pos.y + 1)
 
+  -- maybe blink if invuln
   if self.invuln_cooldown % 3 != 0
   then
     return
@@ -1403,18 +1413,8 @@ function player:draw()
   pal(12, self.skin_color)
   pal(11, self.hair_color)
   
-  if self.vel:mag() > 0 and
-      self.walk_anim_idx
-        <= self.walk_anim_len / 2 then
-    spr(2,
-      self.pos.x,
-      self.pos.y - 1,
-      1, 1, self.left)
-  else
-		  spr(1,
-      self.pos.x, self.pos.y,
-      1, 1, self.left)
-  end
+  self.anim:draw(
+    self.pos, self.left)
 
   palt(14, false)
   pal(12, 12)
