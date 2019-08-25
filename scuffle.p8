@@ -939,7 +939,7 @@ function imp:_init(pos, left)
   self.attack_pos = nil
   self.throw_cooldown = 0
   self.anim =
-    anim(74,75,true,5)
+    anim(74,75,true,8)
   self.windup_anim =
     anim_chain {
       anim_single(
@@ -1522,6 +1522,7 @@ function player:update(
     if self.anim != self.walk_anim
     then
       self.walk_anim:reset()
+      self.walk_anim:reset()
     end
     self.anim = self.walk_anim
   else
@@ -2053,7 +2054,7 @@ function _init()
 		-- buttons, skip it
 		state.skip_intro_presses = 0
 		
-  start_stage(2, state)
+  start_stage(1, state)
 		
   -- uncomment this to
   -- skip long intro
