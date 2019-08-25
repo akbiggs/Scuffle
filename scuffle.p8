@@ -918,6 +918,11 @@ end
 local imp = class.build()
 
 function imp:_init(pos, left)
+  if left == nil
+  then
+    left = pos.x > 64
+  end
+
   self.pos = vec(pos)
   self.vel = vec(0, 0)
   self.left = left
@@ -1631,10 +1636,9 @@ function get_stage_end(
   
   return 128*3 + 16
 end
-  
-function get_waves(stage)
-  -- todo: stage 2, stage 3
 
+
+function get_stage_1_waves()
   return {
     wave(60, {
       walker(vec(110, 30)),
@@ -1673,6 +1677,26 @@ function get_waves(stage)
       spawn_health=true
     }),
   }
+end
+
+function get_stage_2_waves()
+  return {
+    wave(40, {
+      imp(vec(10, 135)),
+      imp(vec(5, -20)),
+      imp(vec(112, 145)),
+    }),
+  }
+end
+
+function get_waves(stage)
+  -- todo: stage 2, stage 3
+  if stage == 2
+  then
+    return get_stage_2_waves()
+  end
+  
+  return get_stage_1_waves()
 end
 
 function get_palette(stage)
@@ -1784,7 +1808,7 @@ function _init()
 		-- buttons, skip it
 		state.skip_intro_presses = 0
 		
-  start_stage(1, state)
+  start_stage(2, state)
 		
   -- uncomment this to
   -- skip long intro
