@@ -8,6 +8,26 @@ function ternary(cond, x, y)
   return y
 end
 
+function sort(tbl, comp)
+  -- insertion sort
+  if comp == nil
+  then
+    comp = function(x, y)
+      return x > y
+    end
+  end
+  for i=1,#tbl
+  do
+    local j = i
+    while j > 1 and 
+          comp(tbl[j-1], tbl[j])
+    do
+      tbl[j],tbl[j-1] = tbl[j-1],tbl[j]
+      j = j - 1
+    end
+  end
+end
+
 -- math helpers
 
 -- is x divisible by d
@@ -1151,6 +1171,13 @@ end
 -- player
 
 local player = class.build()
+player.skin_colors = {
+  4, 9, 15
+}
+player.hair_colors = {
+  0, 6, 10
+}
+player.walk_anim_len = 20
 
 function player:_init(pos)
   self.pos = vec(pos)
@@ -1164,12 +1191,13 @@ function player:_init(pos)
   self.swing_cooldown = 0
   
   self.skin_color =
-      rnd_in {4, 9, 15}
+      rnd_in(player.skin_colors)
   self.hair_color =
-      rnd_in {0, 6, 10}
+      rnd_in(player.hair_colors)
 
   self.walk_anim_idx = 1
-  self.walk_anim_len = 20
+  self.walk_anim_len =
+      player.walk_anim_len
 end
 
 function player:vulnerable()
@@ -1310,15 +1338,22 @@ end
 
 local soul = class.build()
 
-function soul:_init(pos, shirt)
+function soul:_init(pos)
   self.pos = vec(pos)
   self.vel = vec(0, 0)
   
   self.life = 12
-  self.shirt_color = shirt
+  self.skin_color =
+      rnd_in(player.skin_colors)
+  self.hair_color = 
+      rnd_in(player.hair_colors)
   self.invuln_cooldown = 0
   self.hitstun_cooldown = 0
   
+  self.walk_idx = 1
+  self.walk_anim_len =
+      player.walk_anim_len
+
   self.left = false
   
   self.unaware = true
@@ -1370,6 +1405,15 @@ function soul:update(
     self:be_confused(player)
   else
     -- boss battle!!!!!
+  end
+  
+  if self.vel:mag() > 0 then
+    self.walk_anim_idx =
+		    wrap_idx(
+        self.walk_anim_idx + 1,
+        self.walk_anim_len)
+  else
+    self.walk_anim_idx = 1
   end
 end
 
@@ -1499,9 +1543,7 @@ function reset()
   }
 
   state.enemies = {
-    soul(
-        vec(200, 50),
-        state.player.shirt_color - 1),
+    soul(vec(200, 50))
   }
   state.bullets = {}
   state.particles = {}
@@ -1615,6 +1657,29 @@ function draw_ui()
         0, 0, 6)
 end
 
+-- gets all entities that can
+-- be sorted by y-pos to draw
+function all_entities(state)
+  local ents = {}
+  if state.player.life > 0
+  then
+    add(ents, state.player)
+  end
+  for e in all(state.enemies)
+  do
+    add(ents, e)
+  end
+  for b in all(state.bullets)
+  do
+    add(ents, b)
+  end
+  for pr in all(state.particles)
+  do
+    add(ents, pr)
+  end
+  return ents
+end
+
 function _draw()
   cls()
 
@@ -1622,26 +1687,16 @@ function _draw()
 
   map(0, 0, 0, 0)
   random_tiles:draw()
-
-  for e in all(state.enemies)
-  do
-    e:draw()
-  end
-
-  if state.player.life > 0 then  
-    state.player:draw()
-  end
-
-  for p in all(state.particles)
-  do
-    p:draw()
-  end
-
-  for b in all(state.bullets)
-  do
-    b:draw()
-  end
   
+  ents = all_entities(state)
+  sort(ents, function(x, y)
+    return x.pos.y > y.pos.y
+  end)
+  for ent in all(ents)
+  do
+    ent:draw()
+  end
+
   for pi in all(state.pickups)
   do
     pi:draw()
