@@ -433,6 +433,11 @@ function anim_chain:update()
   end
 end
 
+function anim_chain:draw(
+    pos, flip_x)
+  self:anim():draw(pos, filp_x)
+end
+
 -- button helpers
 
 local prev_btn = {
