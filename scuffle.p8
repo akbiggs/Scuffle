@@ -664,6 +664,9 @@ function walker:_init(pos)
   
   self.invuln_cooldown = 0
   self.hitstun_cooldown = 0
+  
+  self.anim_idx = 1
+  self.anim_len = 60
 end
 
 function walker:walk_towards(
@@ -765,18 +768,50 @@ function walker:update(
   self.pos = self.pos:clamp(
       movement_min,
       movement_max)
+
+  if self.vel:mag() > 0 then
+    self.anim_idx =
+      wrap_idx(
+        self.anim_idx + 1,
+        self.anim_len)
+  else
+    self.anim_idx = 1
+  end
 end
 
 function walker:draw()
+  -- shadow
+  spr(6,
+    self.pos.x -
+      ternary(self.left, -1, 1),
+    self.pos.y + 2)
+
+  palt(14, true)
+  palt(0, false)
+
+  -- selet walk anim frame
   local sprid = ternary(
-      self.hitstun_cooldown > 0,
-      3,
-      1)
-  spr(sprid, self.pos.x,
-      self.pos.y,
-      1, 1,
-      -- flip_x
-      self.left)
+    self.vel:mag() > 0 and
+      self.anim_idx <=
+        self.anim_len / 2,
+    69,
+    68)
+  spr(sprid,
+    self.pos.x,
+    self.pos.y,
+    1, 1,
+    -- flip_x
+    self.left)
+
+  -- overlay dragged sword
+  spr(70,
+    self.pos.x,
+    self.pos.y,
+    1, 1,
+    self.left)
+
+  palt(14, false)
+  palt(0, true)
 end
 
 -- imp
@@ -1528,11 +1563,11 @@ ddd2222ddddd2222dd2dddddd2dddddddddd222d0000000000000000000000000000000011111111
 dddd222ddddd222ddd2dddddd2dddddddddd222d000000000000000000000000000000001111111111ddd1110000000000000000000000000000000000000000
 dddd222ddddd222dd2ddddddd2dddddddddd222d00000000000000000000000000000000dddddddddddddddd0000000000000000000000000000000000000000
 eeeeeeeeeeeee777eeeee77eeee7777eeee555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2eeeeeeeeeeeeeeefeeeeeeeeeeeeeeee2eeeeeeeeeeee
-eeeeeeeeeeee7667eeee76eeee77777eee5500eeeee555eeeeeeeeeeeee50eeeeeeeeeeeeeeeeeeee222f88feee2f88fe880eeeeeeeeeeeeeee22eeeeeeeeeee
-eeeeeeeeee776777ee776eeeee77777eee5500eeee5500eeeeeeeeeeee500eeeeeeeeeeeeeeeeeee2222800eee22800ef8082eeeefeee222eee22eeeeeeeeeee
-44eeeeee47667777476eeeee44677777ee5500eeee5500eeeeeeeeeeee5000eeee50eeeeeeeeeeee2222888eee22888ee88222eee808222eefe222eeeeeeeeee
-477eeeee4477777744eeeeee47766777ee5555eeee5500eeeee4eeeeee5555eeee5000eeeeeeeeee222288eeee2228eeee82228ee8022228e80222e8eeeeeeee
-ee677eeeee777777eeeeeeeeee677677ee5555eeee5555eeee764eeee55455eee555555eee5555ee22e2888eee22288eee2222eeef82228ee808228eefeeeeee
+eeeeeeeeeeee7667eeee76eeee77777eee55005eeee555eeeeeeeeeeeee50eeeeeeeeeeeeeeeeeeee222f88feee2f88fe880eeeeeeeeeeeeeee22eeeeeeeeeee
+eeeeeeeeee776777ee776eeeee77777eee55005eee55005eeeeeeeeeee500eeeeeeeeeeeeeeeeeee2222800eee22800ef8082eeeefeee222eee22eeeeeeeeeee
+44eeeeee47667777476eeeee44677777e555005eee55005eeeeeeeeeee5000eeee50eeeeeeeeeeee2222888eee22888ee88222eee808222eefe222eeeeeeeeee
+477eeeee4477777744eeeeee47766777e55555eee555005eeee4eeeeee5555eeee5000eeeeeeeeee222288eeee2228eeee82228ee8022228e80222e8eeeeeeee
+ee677eeeee777777eeeeeeeeee677677e55555eee55555eeee764eeee55455eee555555eee5555ee22e2888eee22288eee2222eeef82228ee808228eefeeeeee
 eeee67eeee77777eeeeeeeeeeeee6767e55555eee55555eee76eeeee557745ee5555455e5555455e2eee88eeee2e88eeeee2228eeee82228ef882228e802228e
 eeeee67eeee7777eeeeeeeeeeeeee677555555ee555555ee76eeeeee776eeeee777774ee777774eeeee8e8eeeee8e8eeeeee2eeeeeeeeeeeeeeeeeeeef822228
 __map__
