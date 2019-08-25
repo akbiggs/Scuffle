@@ -1710,11 +1710,14 @@ each frame]]
 corpse.friction = 0.125
 
 function corpse:_init(
-    aim, pos, vel, flip_x)
+    anim, pos, vel, flip_x)
   self.anim = anim
   self.pos = pos
   self.vel = vel
   self.flip_x = flip_x
+  
+  -- corpses never disappear
+  self.life = 1
 end
 
 function corpse:update()
@@ -1731,8 +1734,11 @@ function corpse:update()
 end
 
 function corpse:draw()
+  palt(14, true)
+  palt(0, false)
   self.anim:draw(
     self.pos, self.flip_x)
+  palt()
 end
 
 
@@ -1754,7 +1760,7 @@ function imp_corpse(pos, left)
 		    anim(76, 78, false, 4),
 		    pos,
 		    vec(
-		      ternary(left, -1, 1) * 1,
+		      ternary(left, 1, -1),
 		      0),
 		    left))
 end
