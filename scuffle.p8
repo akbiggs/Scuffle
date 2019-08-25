@@ -368,7 +368,9 @@ end
 function anim:draw(pos, flip_x)
   spr(
     self.sprid,
-    pos.x + self.offset.x,
+    pos.x + (
+      ternary(flip_x, -1, 1)
+        * self.offset.x),
     pos.y + self.offset.y,
     1, 1,
     flip_x)
@@ -929,6 +931,22 @@ function imp:_init(pos, left)
   self.throw_cooldown = 0
   self.anim =
     anim(74,75,true,5)
+  self.windup_anim =
+    anim_chain {
+      anim_single(
+        14, 6, vec(2, 0)),
+      anim_single(14, 6),
+      anim_single(
+        14, 20, vec(-1, 0)),
+      anim_single(
+        14, 4, vec(1, 0)),
+      anim_single(
+        14, 2, vec(2, 0)),
+      anim_single(
+        14, 1, vec(4, 0)),
+      anim_single(
+        14, 1, vec(6, 0)),
+    }
 end
 
 function imp:shoot(bullets)
@@ -967,7 +985,9 @@ function imp:move_to_attack()
   if self.pos == self.attack_pos
   then
     self.attack_pos = nil
-    self.windup_time = 25
+    self.windup_anim:reset()
+    self.windup_time =
+      self.windup_anim.duration
   end
 end
 
@@ -1007,6 +1027,7 @@ function imp:update(
     then
       self:shoot(bullets)
     end
+    self.windup_anim:update()
   elseif self.attack_pos != nil
   then
     self:move_to_attack()
@@ -1020,12 +1041,16 @@ function imp:draw()
   palt(0, false)
   palt(14, true)
   
-  -- todo: windup sprite
   self.anim:draw(
     self.pos, self.left)
     
   palt(0, true)
   palt(14, false)
+
+  if self.windup_time > 0 then
+    self.windup_anim:draw(
+      self.pos, self.left)
+  end
 end
 
 -- slime
