@@ -1278,10 +1278,10 @@ function spike:update(
 end
 
 function spike:draw()
-  palt(0)
+  palt(0, false)
   palt(14, true)
   self.anim:draw(self.pos)
-  palt(14)
+  palt(14, false)
   palt(0, true)
 end
 
