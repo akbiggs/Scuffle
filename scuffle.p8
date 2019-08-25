@@ -302,7 +302,7 @@ anim = class.build()
 
 function anim:_init(
     start_sprid, end_sprid,
-    is_loop, duration)
+    is_loop, duration, offset)
   -- duration is how many ticks
   -- each frame should last
   duration = duration or 1
@@ -311,6 +311,7 @@ function anim:_init(
   self.end_sprid = end_sprid
   self.is_loop = is_loop
   self.duration = duration
+  self.offset = offset
   self.ticks = 0
     
   self.sprid = start_sprid
@@ -321,10 +322,12 @@ end
 -- useful for passing sprites
 -- to functions that expect
 -- animations
-function anim_single(sprid)
+function anim_single(sprid,
+    duration, offset)
   return anim(
       sprid, sprid,
-      --[[is_loop=]]false)
+      --[[is_loop=]]false,
+      duration, offset)
 end
 
 function anim:reset()
@@ -364,6 +367,15 @@ function anim:update()
   end
 end
 
+function anim:draw(pos, flip_x)
+  spr(
+    self.sprid,
+    pos.x,
+    pos.y,
+    1, 1,
+    flip_x)
+end
+
 -- creates an animation
 -- that chains together
 -- several animation instances.
@@ -376,6 +388,11 @@ function anim_chain:_init(
   self.is_loop = is_loop
   self.done = false
   self.sprid = anims[1].sprid
+
+  self.duration = 0
+  for anim in all(anims) do
+    self.duration += anim.duration
+  end
 end
 
 function anim_chain:anim()
@@ -550,11 +567,8 @@ function bullet:reflect()
 end
 
 function bullet:draw()
-  spr(self.anim.sprid,
-      self.pos.x, self.pos.y,
-      1, 1,
-      -- flip_x
-      self.left)       
+  self.anim:draw(
+    self.pos, self.left)
 end
 
 -- this is game update stuff,
@@ -721,25 +735,33 @@ end
 
 function walker:swing(bullets)
   self.swing_cooldown = 100
-  local bullet_offset =
-      ternary(
-          self.left,
-          vec(-8, 0),
-          vec(8, 0))
+  local bullet_pos =
+    vec(
+      ternary(self.left, -6, 6),
+      0)
+      + self.pos
+
+  local anim =
+  		anim_chain {
+		    anim_single(
+		      66, 8, vec(0, 1)),
+		    anim_single(66, 52),
+		    anim_single(67, 2),
+		    anim_single(64, 20),
+    }
+     
   add(bullets,
       bullet(
-          anim(16, 20, false,
-               6),
-          self.pos +
-              bullet_offset,
+          anim,
+          bullet_pos,
           vec(0, 0),
-          30,
+          anim.duration,
           --[[is_enemy]]true,
           self.left,
           {
             destroy_on_hit=false,
-            deadly_start=25,
-            deadly_end=5,
+            deadly_start=22,
+            deadly_end=20,
           }))
 end
 
