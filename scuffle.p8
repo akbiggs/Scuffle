@@ -1373,6 +1373,20 @@ player.hair_colors = {
   0, 6, 10
 }
 
+function player:init_anims()
+  self.stand_anim =
+    anim_single(1)
+  self.walk_anim =
+    anim_chain(
+      {
+		      anim_single(
+		        2, 5, vec(0, -1)),
+		      anim_single(1, 5),
+		    },
+		    true)
+  self.anim = self.stand_anim
+end
+
 function player:_init(pos)
   self.pos = vec(pos)
   self.vel = vec(0, 0)
@@ -1388,18 +1402,8 @@ function player:_init(pos)
       rnd_in(player.skin_colors)
   self.hair_color =
       rnd_in(player.hair_colors)
-
-  self.stand_anim =
-    anim_single(1)
-  self.walk_anim =
-    anim_chain(
-      {
-		      anim_single(
-		        2, 5, vec(0, -1)),
-		      anim_single(1, 5),
-		    },
-		    true)
-  self.anim = self.stand_anim
+  
+  self:init_anims()
 end
 
 function player:vulnerable()
@@ -1559,9 +1563,7 @@ function soul:_init(pos)
   self.invuln_cooldown = 0
   self.hitstun_cooldown = 0
   
-  self.walk_idx = 1
-  self.walk_anim_len =
-      player.walk_anim_len
+  player.init_anims(self)
 
   self.left = false
   
@@ -1616,15 +1618,6 @@ function soul:update(
     self:be_confused(player)
   else
     -- boss battle!!!!!
-  end
-  
-  if self.vel:mag() > 0 then
-    self.walk_anim_idx =
-		    wrap_idx(
-        self.walk_anim_idx + 1,
-        self.walk_anim_len)
-  else
-    self.walk_anim_idx = 1
   end
 end
 
@@ -1758,7 +1751,6 @@ function get_stage_end(
   return 128*3 + 16
 end
 
-
 function get_stage_1_waves()
   return {
     wave(60, {
@@ -1797,6 +1789,14 @@ function get_stage_1_waves()
     }, {
       spawn_health=true
     }),
+  }
+end
+
+function get_stage_3_waves()
+  return {
+    wave(0, {
+      soul(vec(100, 60)),
+    })
   }
 end
 
@@ -1849,7 +1849,11 @@ function get_stage_2_waves()
 end
 
 function get_waves(stage)
-  -- todo: stage 2, stage 3
+  if stage == 3
+  then
+    return get_stage_3_waves()
+  end
+  
   if stage == 2
   then
     return get_stage_2_waves()
@@ -1879,7 +1883,8 @@ function get_palette(stage)
 end
 
 function get_intro_life(stage)
-  if stage == 2 then
+  if stage == 2 or stage == 3
+  then
     return 200
   end
   return 1000
@@ -1972,7 +1977,7 @@ function _init()
 		-- buttons, skip it
 		state.skip_intro_presses = 0
 		
-  start_stage(2, state)
+  start_stage(3, state)
 		
   -- uncomment this to
   -- skip long intro
@@ -2144,6 +2149,13 @@ function _update60()
   update_prev_btn()
 end
 
+function draw_stage_3_intro()
+  print("scene 3", 48, 64,
+        6)
+  print("boss battle!!!!",
+        35, 80, 6)
+end
+
 function draw_stage_2_intro()
 		print("scene 2", 48, 64,
 		      6)
@@ -2187,7 +2199,10 @@ function draw_stage_1_intro()
 end
 
 function draw_intro()
-  if state.stage == 2
+  if state.stage == 3
+  then
+    draw_stage_3_intro()
+  elseif state.stage == 2
   then
     draw_stage_2_intro()
   else
