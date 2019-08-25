@@ -368,7 +368,9 @@ end
 function anim:draw(pos, flip_x)
   spr(
     self.sprid,
-    pos.x + self.offset.x,
+    pos.x + (
+      ternary(flip_x, -1, 1)
+        * self.offset.x),
     pos.y + self.offset.y,
     1, 1,
     flip_x)
@@ -927,6 +929,24 @@ function imp:_init(pos, left)
   self.windup_time = 0
   self.attack_pos = nil
   self.throw_cooldown = 0
+  self.anim =
+    anim(74,75,true,5)
+  self.windup_anim =
+    anim_chain {
+      anim_single(
+        14, 6, vec(2, 0)),
+      anim_single(14, 6),
+      anim_single(
+        14, 20, vec(-1, 0)),
+      anim_single(
+        14, 4, vec(1, 0)),
+      anim_single(
+        14, 2, vec(2, 0)),
+      anim_single(
+        14, 1, vec(4, 0)),
+      anim_single(
+        14, 1, vec(6, 0)),
+    }
 end
 
 function imp:shoot(bullets)
@@ -965,7 +985,9 @@ function imp:move_to_attack()
   if self.pos == self.attack_pos
   then
     self.attack_pos = nil
-    self.windup_time = 25
+    self.windup_anim:reset()
+    self.windup_time =
+      self.windup_anim.duration
   end
 end
 
@@ -993,6 +1015,7 @@ end
 
 function imp:update(
     player, bullets)
+  self.anim:update()
   if self.throw_cooldown > 0
   then
     self.throw_cooldown -= 1
@@ -1004,6 +1027,7 @@ function imp:update(
     then
       self:shoot(bullets)
     end
+    self.windup_anim:update()
   elseif self.attack_pos != nil
   then
     self:move_to_attack()
@@ -1014,10 +1038,19 @@ function imp:update(
 end
 
 function imp:draw()
-  -- todo: windup sprite
-  spr(8, self.pos.x, self.pos.y,
-      1, 1,
-      self.left)
+  palt(0, false)
+  palt(14, true)
+  
+  self.anim:draw(
+    self.pos, self.left)
+    
+  palt(0, true)
+  palt(14, false)
+
+  if self.windup_time > 0 then
+    self.windup_anim:draw(
+      self.pos, self.left)
+  end
 end
 
 -- slime
@@ -2128,14 +2161,14 @@ ddd222ddddddd222dd2dddddd2dddddddddd222d0000000000000000000000000000000000000000
 ddd2222ddddd2222dd2dddddd2dddddddddd222d00000000000000000000000000000000111111111111d1110000000000000000000000000000000000000000
 dddd222ddddd222ddd2dddddd2dddddddddd222d000000000000000000000000000000001111111111ddd1110000000000000000000000000000000000000000
 dddd222ddddd222dd2ddddddd2dddddddddd222d00000000000000000000000000000000dddddddddddddddd0000000000000000000000000000000000000000
-00000000000007770000077000077770eee555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2eeeeeeeeeeeeeeefeeeeeeeeeeeeeeee2eeeeeeeeeeee
-00000000000076670000760000777770ee55005eeee555eeeeeeeeeeeee50eeeeeeeeeeeeeeeeeeee222f88feee2f88fe880eeeeeeeeeeeeeee22eeeeeeeeeee
-00000000007767770077600000777770ee55005eee55005eeeeeeeeeee500eeeeeeeeeeeeeeeeeee2222800eee22800ef8082eeeefeee222eee22eeeeeeeeeee
-44000000476677774760000044677777e555005eee55005eeeeeeeeeee5000eeee50eeeeeeeeeeee2222888eee22888ee88222eee808222eefe222eeeeeeeeee
-46700000447777774400000047766777e55555eee555005eeee4eeeeee5555eeee5000eeeeeeeeee222288eeee2228eeee82228ee8022228e80222e8eeeeeeee
-00670000007777770000000000677677e55555eee55555eeee764eeee55455eee555555eee5555ee22e2888eee22288eee2222eeef82228ee808228eefeeeeee
-00067700007777700000000000006767e55555eee55555eee76eeeee557745ee5555455e5555455e2eee88eeee2e88eeeee2228eeee82228ef882228e802228e
-00000670000777700000000000000677555555ee555555ee76eeeeee776eeeee777774ee777774eeeee8e8eeeee8e8eeeeee2eeeeeeeeeeeeeeeeeeeef822228
+00000000000007770000077000077770eee555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2eeeeeeee2f88feefeeeeeeeeeeeeeeee2eeeeeeeeeeee
+00000000000076670000760000777770ee55005eeee555eeeeeeeeeeeee50eeeeeeeeeeeeeeeeeeee222f88fee22800ee880eeeeeeeeeeeeeee22eeeeeeeeeee
+00000000007767770077600000777770ee55005eee55005eeeeeeeeeee500eeeeeeeeeeeeeeeeeee2222800eee22888ef8082eeeefeee222eee22eeeeeeeeeee
+44000000476677774760000044677777e555005eee55005eeeeeeeeeee5000eeee50eeeeeeeeeeee2222888eee2228eee88222eee808222eefe222eeeeeeeeee
+46700000447777774400000047766777e55555eee555005eeee4eeeeee5555eeee5000eeeeeeeeee222288eeee22288eee82228ee8022228e80222e8eeeeeeee
+00670000007777770000000000677677e55555eee55555eeee764eeee55455eee555555eee5555ee22e2888eee2e88eeee2222eeef82228ee808228eefeeeeee
+00067700007777700000000000006767e55555eee55555eee76eeeee557745ee5555455e5555455e2eee88eeeee8e8eeeee2228eeee82228ef882228e802228e
+00000670000777700000000000000677555555ee555555ee76eeeeee776eeeee777774ee777774eeeee8e8eeeeeeeeeeeeee2eeeeeeeeeeeeeeeeeeeef822228
 __map__
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
