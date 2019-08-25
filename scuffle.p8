@@ -1217,8 +1217,8 @@ local spike = class.build()
 -- i use the frame where the
 -- spikes are out as the frame
 -- to create the bullet
-spike.damaging_sprid = 16
-spike.damaging_time = 20
+spike.damaging_sprid = 22
+spike.damaging_time = 180
 
 -- offset is a timing offset
 -- that you can use to make
@@ -1232,12 +1232,9 @@ function spike:_init(
   
   self.pos = pos
 
-  self.anim = anim_chain({
-    anim(20, 20, false, 100),
-    anim(18, 18, false, 40),
-    anim(16, 16, false,
-         spike.damaging_time),
-  }, --[[is_loop=]]true)
+  self.anim = anim(
+    21, 22, true,
+    spike.damaging_time)
    
   -- offset spike timing by
   -- pushing the animation
@@ -1281,8 +1278,11 @@ function spike:update(
 end
 
 function spike:draw()
-  spr(self.anim.sprid,
-      self.pos.x, self.pos.y)
+  palt(0)
+  palt(14, true)
+  self.anim:draw(self.pos)
+  palt(14)
+  palt(0, true)
 end
 
 -- enemy waves
