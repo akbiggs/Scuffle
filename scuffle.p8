@@ -1620,7 +1620,7 @@ function _init()
   state.intro_life = 1000
   state.music_intro = true
   -- false for cool intro
-  state.skip_intro = true
+  state.skip_intro = false
   state.intro_done = false
   state.stage_done = false
   state.prompt_move_dist = 0
