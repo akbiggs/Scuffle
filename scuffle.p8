@@ -1269,7 +1269,7 @@ function player:swing(bullets)
 end
 
 function player:update(
-    cam, bullets)  
+    cam, cam_locked, bullets)  
   self.swing_cooldown = max(0,
       self.swing_cooldown - 1)
   self.walk_cooldown = max(0,
@@ -1292,7 +1292,17 @@ function player:update(
   self.pos = self.pos:clamp(
       vec(cam.pos.x,
           movement_min.y),
-      movement_max)
+      -- when the camera is
+      -- locked, force the
+      -- player in-bounds.
+      -- otherwise they
+      -- can wander off-cam
+      -- to end the stage.
+      vec(ternary(
+              cam_locked,
+              cam.pos.x + 120,
+              movement_max.x),
+          movement_max.y))
 
   if self.vel:mag() > 0 then
     self.walk_anim_idx =
@@ -1502,7 +1512,7 @@ function cam:_init(p)
   self.give = 16
   self.pos = vec(0, 0)
   self.min = vec(0, 0)
-  self.max = vec(128*4, 0)
+  self.max = vec(128*2, 0)
   self.center =
       vec(128, 128) / 2
 end
@@ -1575,7 +1585,7 @@ function reset()
       imp(vec(112, -10),
           --[[left=]]true),
     }),
-    wave(250, {
+    wave(128*2, {
       seeker(vec(100, -5)),
     }, {
       spawn_health=true
@@ -1586,6 +1596,10 @@ function reset()
   state.bullets = {}
   state.particles = {}
   state.pickups = {}
+  
+  -- player xpos that ends the
+  -- stage
+  state.stage_end = 128*3 + 16
 end
 
 function get_tile_gen_palette(
@@ -1608,6 +1622,7 @@ function _init()
   -- false for cool intro
   state.skip_intro = true
   state.intro_done = false
+  state.stage_done = false
   state.prompt_move_dist = 0
   music(0)
 end
@@ -1638,11 +1653,13 @@ function _update60()
     return
   end
   
-  -- player
-  local p = state.player
-  if p.life > 0 then
-    p:update(state.camera,
-             state.bullets)
+  if not state.stage_done and
+     state.player.pos.x >
+     state.stage_end
+  then
+    state.stage_done = true
+    music(-1)
+    sfx(26)
   end
   
   -- waves
@@ -1653,9 +1670,21 @@ function _update60()
              state.pickups)
   end
   
+  -- player
+  local cam_locked =
+      any_wave_locking_cam(
+          state.waves)
+
+  local p = state.player
+  if p.life > 0 then
+    p:update(state.camera,
+             cam_locked,
+             state.bullets)
+  end
+
+  
   -- camera
-  if not any_wave_locking_cam(
-      state.waves)
+  if not cam_locked
   then
     local old_campos = vec(
         state.camera.pos)
@@ -1910,7 +1939,7 @@ __sfx__
 00030000271502a1502b1502d1502f1502e1503015031150000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000100002d2502d25030250302503225035250352503b250372500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000100001342013420144201142014420124201d4201b42018420224201f4201e420163501535012350103500f3500e3500d3500b3500a3500735006350043500000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+001700000264302600026430260002633026000262302600026130260002613006000060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
