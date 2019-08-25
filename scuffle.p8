@@ -610,6 +610,19 @@ function update_bullets(state)
         p.walk_cooldown = 20
         p.pos += pushback
         sfx(21)
+        
+        if p.life <= 0
+        then
+          -- todo: death sfx
+
+          -- timer so the stage
+          -- doesn't restart
+          -- if the player spams
+          -- x when dying
+          state.death_timer =
+              200
+          music(-1)
+        end
       end
     else
       for e in all(
@@ -1647,6 +1660,7 @@ function init_stage(state)
   state.bullets = {}
   state.particles = {}
   state.pickups = {}
+  state.death_timer = 0
 
   state.stage_end =
       get_stage_end(
@@ -1781,10 +1795,13 @@ function _update60()
   end
   
   -- stage restarting junk
+  state.death_timer = max(0,
+      state.death_timer - 1)
   if state.player.life <= 0 and
+     state.death_timer <= 0 and
      btnjp(❎)
   then
-    -- todo
+    restart_stage(state)
   end
   
   -- waves
