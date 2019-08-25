@@ -1661,6 +1661,7 @@ function init_stage(state)
   state.particles = {}
   state.pickups = {}
   state.death_timer = 0
+  state.outro_life = 0
 
   state.stage_end =
       get_stage_end(
@@ -1693,8 +1694,9 @@ function start_stage(
   then
   		state.music_intro = true
     state.prompt_move_dist = 0
+  else
+    state.prompt_move_dist = 20
   end
-  
   state.stage_done = false
   state.skip_intro = false
   state.intro_done = false
@@ -1786,15 +1788,22 @@ function _update60()
   end
 
   -- stage completion junk
+  state.outro_life = max(0,
+      state.outro_life - 1)
   if not state.stage_done and
      state.player.pos.x >
      state.stage_end
   then
     state.stage_done = true
+    state.outro_life = 250
     music(-1)
     sfx(26)
+  elseif state.stage_done and
+         state.outro_life <= 0
+  then
+    next_stage(state)
   end
-  
+
   -- stage restarting junk
   state.death_timer = max(0,
       state.death_timer - 1)
@@ -1893,7 +1902,14 @@ function _update60()
   update_prev_btn()
 end
 
-function draw_intro()
+function draw_stage_2_intro()
+		print("scene 2", 48, 64,
+		      6)
+		print("electric boogaloo",
+		      28, 80, 6)
+end
+
+function draw_stage_1_intro()
   if state.intro_life < 250
   then
 		  print("scene 1", 48, 64,
@@ -1926,6 +1942,16 @@ function draw_intro()
 	       "good luck!\"",
 	       80, 60, 6)
 	 end
+end
+
+function draw_intro()
+  if state.stage == 2
+  then
+    draw_stage_2_intro()
+  else
+    draw_stage_1_intro()
+  end
+  
 end
 
 function draw_ui()
