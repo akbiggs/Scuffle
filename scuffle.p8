@@ -435,7 +435,7 @@ end
 
 function anim_chain:draw(
     pos, flip_x)
-  self:anim():draw(pos, filp_x)
+  self:anim():draw(pos, flip_x)
 end
 
 -- button helpers
@@ -560,7 +560,11 @@ function bullet:collide(other)
     then
       bullet.life = 0
     end
-    other.life -= 1
+    if other.damage then
+      other:damage(1)
+    else
+      other.life -= 1
+    end
     return true
   end
   return false
@@ -781,20 +785,31 @@ function walker:swing(bullets)
 
   self.swing_cooldown = anim.duration
   self.walk_cooldown = anim.duration
+  self.bullet =
+    bullet(
+      anim,
+      bullet_pos,
+      vec(0, 0),
+      anim.duration,
+      --[[is_enemy]]true,
+      self.left,
+      {
+        destroy_on_hit=false,
+        deadly_start=22,
+        deadly_end=20,
+      })
 
-  add(bullets,
-      bullet(
-          anim,
-          bullet_pos,
-          vec(0, 0),
-          anim.duration,
-          --[[is_enemy]]true,
-          self.left,
-          {
-            destroy_on_hit=false,
-            deadly_start=22,
-            deadly_end=20,
-          }))
+  add(bullets, self.bullet)
+end
+
+function walker:damage(amount)
+  self.life = max(
+    0, self.life - amount)
+  if self.life == 0
+      and self.bullet then
+    self.bullet.life = 0
+    self.bullet = nil
+  end
 end
 
 function walker:run_ai(
@@ -822,6 +837,10 @@ end
 
 function walker:update(
     player, bullets)
+  if self.bullet
+      and self.bullet.life == 0 then
+    self.bullet = nil
+  end
   if player.life <= 0 then
     return
   end
@@ -2079,9 +2098,9 @@ dddd222ddddd222dd2ddddddd2dddddddddd222d00000000000000000000000000000000dddddddd
 00000000000076670000760000777770ee55005eeee555eeeeeeeeeeeee50eeeeeeeeeeeeeeeeeeee222f88feee2f88fe880eeeeeeeeeeeeeee22eeeeeeeeeee
 00000000007767770077600000777770ee55005eee55005eeeeeeeeeee500eeeeeeeeeeeeeeeeeee2222800eee22800ef8082eeeefeee222eee22eeeeeeeeeee
 44000000476677774760000044677777e555005eee55005eeeeeeeeeee5000eeee50eeeeeeeeeeee2222888eee22888ee88222eee808222eefe222eeeeeeeeee
-47700000447777774400000047766777e55555eee555005eeee4eeeeee5555eeee5000eeeeeeeeee222288eeee2228eeee82228ee8022228e80222e8eeeeeeee
-00677000007777770000000000677677e55555eee55555eeee764eeee55455eee555555eee5555ee22e2888eee22288eee2222eeef82228ee808228eefeeeeee
-00006700007777700000000000006767e55555eee55555eee76eeeee557745ee5555455e5555455e2eee88eeee2e88eeeee2228eeee82228ef882228e802228e
+46700000447777774400000047766777e55555eee555005eeee4eeeeee5555eeee5000eeeeeeeeee222288eeee2228eeee82228ee8022228e80222e8eeeeeeee
+00670000007777770000000000677677e55555eee55555eeee764eeee55455eee555555eee5555ee22e2888eee22288eee2222eeef82228ee808228eefeeeeee
+00067700007777700000000000006767e55555eee55555eee76eeeee557745ee5555455e5555455e2eee88eeee2e88eeeee2228eeee82228ef882228e802228e
 00000670000777700000000000000677555555ee555555ee76eeeeee776eeeee777774ee777774eeeee8e8eeeee8e8eeeeee2eeeeeeeeeeeeeeeeeeeef822228
 __map__
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
