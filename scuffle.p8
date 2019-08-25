@@ -1569,38 +1569,44 @@ end
 
 tile_gen = class.build()
 
-function tile_gen:_init()
+function tile_gen:_init(
+    cam, width)
+  self.cam = cam
+
   self.deets = {}
-  local wall_deet_ids = {
-      35, 36, 37, 38, 53
-  }
   local grnd_deet_ids = {
       39, 40, 54, 55, 56
   }
 
-  local s_width = 16
-  for s = 1,flr(128 / s_width) do
-    local y = flr(rnd(8 * 8 - 4)) + 4 * 8
-    if (y >= 12 * 8 - 4) y += 8
-    local x = flr(rnd(s_width)) + s * s_width
-    local t = rnd_in(
-        ternary(
-          y < 12 * 8,
-          grnd_deet_ids,
-          wall_deet_ids))
-          
-    add(self.deets, {x = x, y = y, t = t})
+  -- slice width
+  self.s_width = 16
+  for s = 1,flr(width / self.s_width)
+  do
+    add(self.deets,
+      {
+        x = 
+          flr(rnd(self.s_width))
+          + s * self.s_width,
+        y =
+          flr(rnd(8 * 8 - 4))
+          + 4 * 8,
+        t =
+          rnd_in(grnd_deet_ids),
+      })
   end
 end
 
 function tile_gen:draw()
-  rectfill(0,0,128*4,4*8-1,9)
-  rectfill(0,4*8,128*4,12*8-1,13)
-  clip(0,0,128,14*8)
-  for d in all(self.deets) do
-    spr(d.t, d.x, d.y)
+  local x = self.cam.pos.x
+  rectfill(x,0,x+127,4*8-1,9)
+  rectfill(x,4*8,x+127,12*8-1,13)
+  for i =
+    flr(x / self.s_width) - 1,
+    flr((x + 128) / self.s_width) + 1
+	 do
+	   local d = self.deets[i]
+	   if (d) spr(d.t, d.x, d.y)
   end
-  clip()
 end
 -->8
 -- camera
@@ -1762,6 +1768,11 @@ function init_stage(state)
   
   state.waves = get_waves(
       state.stage)
+      
+  state.decals =
+      tile_gen(
+        state.camera,
+        state.stage_end)
 end
 
 -- call this the first time
@@ -1826,8 +1837,6 @@ function _init()
   -- uncomment this to
   -- skip long intro
   --restart_stage(state)
-  
-  random_tiles = tile_gen()
 end
 
 -- a bunch of junk to align
@@ -2105,7 +2114,7 @@ function _draw()
   pal(9, palette.sky)
   pal(13, palette.ground)
 
-  random_tiles:draw()
+  state.decals:draw()
   map(0, 0, 0, 0)
   
   pal(1, 1)
