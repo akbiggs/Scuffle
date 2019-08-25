@@ -1170,6 +1170,21 @@ function seeker:draw()
   end
 end
 
+-- spikes
+-- a spike is an ememy that
+-- fires a bullet in-place with
+-- no velocity sporadically
+
+local spike = class.build()
+
+-- offset is a timing offset
+-- that you can use to make
+-- waves of spikes
+function spike:_init(
+    pos, offset)
+
+end
+
 -- enemy waves
 
 local wave = class.build()
@@ -1686,6 +1701,19 @@ function get_stage_2_waves()
       imp(vec(5, -20)),
       imp(vec(112, 145)),
     }),
+    wave(70, {
+      walker(vec(10, 40)),
+      walker(vec(15, 55)),
+      walker(vec(8, 75)),
+      walker(vec(112, 48)),
+      walker(vec(120, 65)),
+    }),
+    wave(100, {
+      seeker(vec(140, -30)),
+      seeker(vec(10, 140)),
+    }, {
+      spawn_health=true,
+    }),
   }
 end
 
@@ -1704,8 +1732,8 @@ function get_palette(stage)
   then
     -- shades of red
     return {
-      ground=9,
-      outline=5,
+      ground=4,
+      outline=9,
       crack=4,
       sky=15,
     }
