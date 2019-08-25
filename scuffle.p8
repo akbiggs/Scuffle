@@ -110,8 +110,8 @@ function vec:_init(x, y)
     self.y=x.y
   else
     -- value ctor
-    self.x=x
-    self.y=y
+    self.x=x or 0
+    self.y=y or 0
   end
 end
 
@@ -183,7 +183,7 @@ end
 
 function vec:normalized()
   local mag = self:mag()
-  if (mag == 0) return vec(0, 0)
+  if (mag == 0) return vec()
   return self / self:mag()
 end
 
@@ -311,7 +311,7 @@ function anim:_init(
   self.end_sprid = end_sprid
   self.is_loop = is_loop
   self.duration = duration
-  self.offset = offset or vec(0,0)
+  self.offset = offset or vec()
 
   self:reset()
 end
@@ -731,7 +731,7 @@ local walker = class.build()
 
 function walker:_init(pos)
   self.pos = vec(pos)
-  self.vel = vec(0, 0)
+  self.vel = vec()
   self.left = false
   self.swing_cooldown = 100
   self.life = 3
@@ -800,7 +800,7 @@ function walker:swing(bullets)
     bullet(
       anim,
       bullet_pos,
-      vec(0, 0),
+      vec(),
       anim.duration,
       --[[is_enemy]]true,
       self.left,
@@ -865,7 +865,7 @@ function walker:update(
   self.invuln_cooldown = max(0,
       self.invuln_cooldown - 1)
   
-  self.vel = vec(0, 0)
+  self.vel = vec()
   
   if self.hitstun_cooldown
      <= 0
@@ -926,7 +926,7 @@ function imp:_init(pos, left)
   end
 
   self.pos = vec(pos)
-  self.vel = vec(0, 0)
+  self.vel = vec()
   self.left = left
   self.life = 1
   self.invuln_cooldown = 0
@@ -1042,6 +1042,15 @@ function imp:update(
   end
 end
 
+function imp:damage(amount)
+  if (self.life <= 0) return
+  self.life -= max(0, amount)
+  if self.life <= 0 then
+    imp_corpse(
+      self.pos, self.left)
+  end
+end
+
 function imp:draw()
   spr(5,
     self.pos.x,
@@ -1072,7 +1081,7 @@ local seeker = class.build()
 
 function seeker:_init(pos)
   self.pos = vec(pos)
-  self.vel = vec(0, 0)
+  self.vel = vec()
   
   self.life = 4
   self.tail_length = 4
@@ -1118,7 +1127,7 @@ function seeker:seek(
       bullet(
           anim_single(0),
           self.pos,
-          --[[vel=]]vec(0, 0),
+          --[[vel=]]vec(),
           --[[life=]]1,
           --[[is_enemy=]]true,
           --[[left=]]false,
@@ -1270,7 +1279,7 @@ function spike:update(
           -- invisible
           anim_single(9),
           self.pos,
-          vec(0, 0),
+          vec(),
           spike.damaging_time,
           --[[is_enemy=]]true,
           --[[left=]]false))
@@ -1375,7 +1384,7 @@ player.hair_colors = {
 
 function player:_init(pos)
   self.pos = vec(pos)
-  self.vel = vec(0, 0)
+  self.vel = vec()
   self.life = 6
   self.max_life = 6
   self.invuln_cooldown = 100
@@ -1421,7 +1430,7 @@ function player:can_swing()
 end
 
 function player:walk()
-  local direc = vec(0, 0)
+  local direc = vec()
 
   if (btn(⬅️)) direc.x -= 1
   if (btn(➡️)) direc.x += 1
@@ -1457,7 +1466,7 @@ function player:swing(bullets)
           anim(66, 66, false, 8),
         },
         bullet_pos,
-        vec(0, 0),
+        vec(),
         12,
         --[[is_enemy]]false,
         self.left,
@@ -1477,7 +1486,7 @@ function player:update(
       self.walk_cooldown - 1)
   self.invuln_cooldown = max(0,
       self.invuln_cooldown - 1)
-  self.vel = vec(0, 0)
+  self.vel = vec()
 
   if self:can_walk() then
     self:walk()
@@ -1549,7 +1558,7 @@ local soul = class.build()
 
 function soul:_init(pos)
   self.pos = vec(pos)
-  self.vel = vec(0, 0)
+  self.vel = vec()
   
   self.life = 12
   self.skin_color =
@@ -1648,7 +1657,7 @@ function soul:draw()
   player.draw(self)
 end
 -->8
--- tile generation and drawing
+-- decals
 
 tile_gen = class.build()
 
@@ -1691,6 +1700,64 @@ function tile_gen:draw()
 	   if (d) spr(d.t, d.x, d.y)
   end
 end
+
+-- corpses
+
+corpse = class.build()
+
+--[[subtracted from vel
+each frame]]
+corpse.friction = 0.125
+
+function corpse:_init(
+    aim, pos, vel, flip_x)
+  self.anim = anim
+  self.pos = pos
+  self.vel = vel
+  self.flip_x = flip_x
+end
+
+function corpse:update()
+  self.pos = self.pos + self.vel
+  if self.vel:mag() < corpse.friction then
+    self.vel = vec()
+  else
+	   self.vel = 
+	     self.vel - (
+	       self.vel:normalized()
+	       * corpse.friction)
+	 end
+  self.anim:update()
+end
+
+function corpse:draw()
+  self.anim:draw(
+    self.pos, self.flip_x)
+end
+
+
+-- enemy-specific corpses
+
+function walker_corpse(
+    pos, left)
+  add_particle(
+    corpse(
+		    anim(71, 73, false, 8),
+		    pos + vec(0, 1),
+		    vec(),
+		    left))
+end
+
+function imp_corpse(pos, left)
+  add_particle(
+    corpse(
+		    anim(76, 78, false, 4),
+		    pos,
+		    vec(
+		      ternary(left, -1, 1) * 1,
+		      0),
+		    left))
+end
 -->8
 -- camera
 
@@ -1699,8 +1766,8 @@ cam = class.build()
 function cam:_init(p)
   self.p = p
   self.give = 16
-  self.pos = vec(0, 0)
-  self.min = vec(0, 0)
+  self.pos = vec()
+  self.min = vec()
   self.max = vec(128*2, 0)
   self.center =
       vec(128, 128) / 2
@@ -1913,6 +1980,10 @@ function init_stage(state)
       tile_gen(
         state.camera,
         state.stage_end)
+end
+
+function add_particle(p)
+  add(state.particles, p)
 end
 
 -- call this the first time
@@ -2320,14 +2391,14 @@ ddd222ddddddd222dd2dddddd2dddddddddd222d0000000000000000000000000000000000000000
 ddd2222ddddd2222dd2dddddd2dddddddddd222d00000000000000000000000000000000111111111111d1110000000000000000000000000000000000000000
 dddd222ddddd222ddd2dddddd2dddddddddd222d000000000000000000000000000000001111111111ddd1110000000000000000000000000000000000000000
 dddd222ddddd222dd2ddddddd2dddddddddd222d00000000000000000000000000000000dddddddddddddddd0000000000000000000000000000000000000000
-00000000000007770000077000077770eee555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2eeeeeeee2f88feefeeeeeeeeeeeeeeee2eeeeeeeeeeee
-00000000000076670000760000777770ee55005eeee555eeeeeeeeeeeee50eeeeeeeeeeeeeeeeeeee222f88fee22800ee880eeeeeeeeeeeeeee22eeeeeeeeeee
-00000000007767770077600000777770ee55005eee55005eeeeeeeeeee500eeeeeeeeeeeeeeeeeee2222800eee22888ef8082eeeefeee222eee22eeeeeeeeeee
-44000000476677774760000044677777e555005eee55005eeeeeeeeeee5000eeee50eeeeeeeeeeee2222888eee2228eee88222eee808222eefe222eeeeeeeeee
-46700000447777774400000047766777e55555eee555005eeee4eeeeee5555eeee5000eeeeeeeeee222288eeee22288eee82228ee8022228e80222e8eeeeeeee
-00670000007777770000000000677677e55555eee55555eeee764eeee55455eee555555eee5555ee22e2888eee2e88eeee2222eeef82228ee808228eefeeeeee
-00067700007777700000000000006767e55555eee55555eee76eeeee557745ee5555455e5555455e2eee88eeeee8e8eeeee2228eeee82228ef882228e802228e
-00000670000777700000000000000677555555ee555555ee76eeeeee776eeeee777774ee777774eeeee8e8eeeeeeeeeeeeee2eeeeeeeeeeeeeeeeeeeef822228
+00000000000007770000077000077770eee555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2eeeeeeee2f88feefeeeeeeeeeeeeeeeeeeeeeeee2eeee
+00000000000076670000760000777770ee55005eeee555eeeeeeeeeeeee50eeeeeeeeeeeeeeeeeeee222f88fee22800ee880eeeeeeeeeeeeeeeeeeeeeee22eee
+00000000007767770077600000777770ee55005eee55005eeeeeeeeeee500eeeeeeeeeeeeeeeeeee2222800eee22888ef8082eeeefeee222eeeeeeeeeee22eee
+44000000476677774760000044677777e555005eee55005eeeeeeeeeee5000eeee50eeeeeeeeeeee2222888eee2228eee88222eee808222eeeeeeeeeefe222ee
+46700000447777774400000047766777e55555eee555005eeee4eeeeee5555eeee5000eeeeeeeeee222288eeee22288eee82228ee8022228eeeeeeeee80222e8
+00670000007777770000000000677677e55555eee55555eeee764eeee55455eee555555eee5555ee22e2888eee2e88eeee2222eeef82228eefeeeeeee808228e
+00067700007777700000000000006767e55555eee55555eee76eeeee557745ee5555455e5555455e2eee88eeeee8e8eeeee2228eeee82228e802228eef882228
+00000670000777700000000000000677555555ee555555ee76eeeeee776eeeee777774ee777774eeeee8e8eeeeeeeeeeeeee2eeeeeeeeeeeef822228eeeeeeee
 __label__
 66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
 66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
