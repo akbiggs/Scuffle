@@ -1977,7 +1977,7 @@ function _init()
 		-- buttons, skip it
 		state.skip_intro_presses = 0
 		
-  start_stage(3, state)
+  start_stage(1, state)
 		
   -- uncomment this to
   -- skip long intro
