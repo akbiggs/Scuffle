@@ -1502,7 +1502,7 @@ function cam:_init(p)
   self.give = 16
   self.pos = vec(0, 0)
   self.min = vec(0, 0)
-  self.max = vec(256, 0)
+  self.max = vec(128*4, 0)
   self.center =
       vec(128, 128) / 2
 end
@@ -1566,10 +1566,16 @@ function reset()
     wave(170, {
       walker(vec(25, 80)),
       walker(vec(35, 40)),
-      imp(vec(112, -5),
+      imp(vec(8, -5),
+          --[[left=]]false),
+    }),
+    wave(220, {
+      imp(vec(12, -30),
+          --[[left=]]false),
+      imp(vec(112, -10),
           --[[left=]]true),
     }),
-    wave(400, {
+    wave(250, {
       seeker(vec(100, -5)),
     }, {
       spawn_health=true
