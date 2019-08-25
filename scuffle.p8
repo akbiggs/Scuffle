@@ -8,6 +8,26 @@ function ternary(cond, x, y)
   return y
 end
 
+function sort(tbl, comp)
+  -- insertion sort
+  if comp == nil
+  then
+    comp = function(x, y)
+      return x > y
+    end
+  end
+  for i=1,#tbl
+  do
+    local j = i
+    while j > 1 and 
+          comp(tbl[j-1], tbl[j])
+    do
+      tbl[j],tbl[j-1] = tbl[j-1],tbl[j]
+      j = j - 1
+    end
+  end
+end
+
 -- math helpers
 
 -- is x divisible by d
@@ -525,6 +545,8 @@ function bullet:reflect()
   -- add some more life so it
   -- lasts longer
   self.life += 50
+  
+  sfx(24)
 end
 
 function bullet:draw()
@@ -589,6 +611,7 @@ function update_bullets(state)
           e.hitstun_cooldown =
               60
           e.pos += pushback
+          e.vel = pushback / 4
           sfx(20)
         end
       end
@@ -616,8 +639,10 @@ function health:update(player)
       player.pos,
       --[[size=]]vec(8, 8))
   
-  if hb:intersects(phb)
+  if self.life > 0 and
+     hb:intersects(phb)
   then
+    sfx(23)
     self.life = 0
     player.life = min(
         player.max_life,
@@ -851,7 +876,8 @@ function imp:shoot(bullets)
         reflectable=true,
       })
   add(bullets, bullet)
-  
+  sfx(22)
+
   self.throw_cooldown = 50
 end
 
@@ -934,23 +960,23 @@ function seeker:_init(pos)
   
   self.life = 4
   self.tail_length = 4
-  self.separation = 12
-  self.speed = 0.35
+  self.separation = 10
+  self.speed = 0.6
   self.invuln_cooldown = 0
   -- not used but necessary
   self.hitstun_cooldown = 0
-  
+
   -- tail is a list of previous
-  -- positions. the first elt
+  -- positions. the last elt
   -- is the furthest position,
-  -- the last elt is the current
-  -- position
+  -- the first elt is the
+  -- current position
   self.tail = {}
   for i=self:tail_end_idx(),1,-1
   do
     add(self.tail,
         vec(self.pos.x,
-            self.pos.y - self.speed))
+            self.pos.y))
   end
 end
 
@@ -959,33 +985,16 @@ function seeker:tail_end_idx()
       self.separation
 end
 
-function seeker:update(
+function seeker:seek(
     player, bullets)
-  self.invuln_cooldown = max(0,
-      self.invuln_cooldown - 1)
-  self.hitstun_cooldown = max(0,
-      self.hitstun_cooldown - 1)
-
   local direc = player.pos -
       self.pos
-  
-  -- push the tail back
-  local end_idx =
-      self:tail_end_idx()
-  for i=end_idx,2,-1
-  do
-    self.tail[i] =
-        self.tail[i-1]
-  end
-  
-  -- put the new position at
-  -- the front of the tail
-  self.pos =
-      self.pos:push_towards(
-          player.pos,
-          self.speed)
-  self.tail[1] = self.pos
-  
+  self.vel =
+      self.vel:push_towards(
+          direc:normalized() *
+          self.speed,
+          0.025) 
+ 
   -- to do collisions with the
   -- eye, put a bullet in the
   -- eye for one frame
@@ -1000,6 +1009,37 @@ function seeker:update(
           {
             size=vec(4, 4),
           }))
+end
+
+function seeker:update(
+    player, bullets)
+  self.invuln_cooldown = max(0,
+      self.invuln_cooldown - 1)
+  self.hitstun_cooldown = max(0,
+      self.hitstun_cooldown - 1)
+
+  if self.hitstun_cooldown == 0
+  then
+    self:seek(player, bullets)
+  else
+    -- drop a bit while taking
+    -- damage
+    self.vel.y += 0.01
+  end
+  
+    -- push the tail back
+  local end_idx =
+      self:tail_end_idx()
+  for i=end_idx,2,-1
+  do
+    self.tail[i] =
+        self.tail[i-1]
+  end
+  
+  -- put the new position at
+  -- the front of the tail
+  self.pos += self.vel
+  self.tail[1] = self.pos  
 end
 
 function seeker:draw()
@@ -1034,9 +1074,12 @@ function seeker:draw()
     elseif i > 1
     then
       sprid = 29
+    elseif self.hitstun_cooldown > 0
+    then
+      sprid = 28
     else
-      print(self.life)
-    end 
+      sprid = 27
+    end
 
     if i == 1 or 
        divby(self.separation, i)
@@ -1128,6 +1171,13 @@ end
 -- player
 
 local player = class.build()
+player.skin_colors = {
+  4, 9, 15
+}
+player.hair_colors = {
+  0, 6, 10
+}
+player.walk_anim_len = 20
 
 function player:_init(pos)
   self.pos = vec(pos)
@@ -1141,12 +1191,13 @@ function player:_init(pos)
   self.swing_cooldown = 0
   
   self.skin_color =
-      rnd_in {4, 9, 15}
+      rnd_in(player.skin_colors)
   self.hair_color =
-      rnd_in {0, 6, 10}
+      rnd_in(player.hair_colors)
 
   self.walk_anim_idx = 1
-  self.walk_anim_len = 20
+  self.walk_anim_len =
+      player.walk_anim_len
 end
 
 function player:vulnerable()
@@ -1211,6 +1262,7 @@ function player:swing(bullets)
             deadly_start=25,
             deadly_end=5,
           }))
+  sfx(25)
 end
 
 function player:update(bullets)  
@@ -1279,6 +1331,111 @@ function player:draw()
   pal(12, 12)
   pal(11, 11)
 end
+
+-- departed soul
+-- the final boss of the game
+-- who you steal the gold from.
+
+local soul = class.build()
+
+function soul:_init(pos)
+  self.pos = vec(pos)
+  self.vel = vec(0, 0)
+  
+  self.life = 12
+  self.skin_color =
+      rnd_in(player.skin_colors)
+  self.hair_color = 
+      rnd_in(player.hair_colors)
+  self.invuln_cooldown = 0
+  self.hitstun_cooldown = 0
+  
+  self.walk_idx = 1
+  self.walk_anim_len =
+      player.walk_anim_len
+
+  self.left = false
+  
+  self.unaware = true
+  self.confused = false
+  self.confused_frames = 0
+end
+
+function soul:react_to_player(
+    player)
+  if abs(player.pos.x - self.pos.x) < 45
+  then
+    self.unaware = false
+    self.confused = true
+  end
+end
+
+function soul:be_confused(
+    player)
+  if self.hitstun_cooldown > 0
+  then
+    -- we got attacked. we're
+    -- becoming hostile.
+    self.confused = false
+    return
+  end
+
+  if player.pos.x < self.pos.x
+  then
+    self.left = true
+  else
+    self.left = false
+  end
+  
+  self.confused_frames += 1
+end
+
+function soul:update(
+    player, bullets)
+  self.invuln_cooldown = max(0,
+      self.invuln_cooldown - 1)
+  self.hitstun_cooldown = max(0,
+      self.hitstun_cooldown - 1)
+
+  if self.unaware
+  then
+    self:react_to_player(player)
+  elseif self.confused
+  then
+    self:be_confused(player)
+  else
+    -- boss battle!!!!!
+  end
+  
+  if self.vel:mag() > 0 then
+    self.walk_anim_idx =
+		    wrap_idx(
+        self.walk_anim_idx + 1,
+        self.walk_anim_len)
+  else
+    self.walk_anim_idx = 1
+  end
+end
+
+function soul:draw()
+  if self.confused
+  then
+    local offset = min(
+        4,
+        self.confused_frames) +
+        2
+     
+    local text_pos =
+        self.pos + vec(2,
+                       -offset) 
+    print(
+        "?",
+        text_pos.x, text_pos.y,
+        6)
+  end
+  
+  player.draw(self)
+end
 -->8
 -- tile generation and drawing
 
@@ -1323,7 +1480,7 @@ cam = class.build()
 
 function cam:_init(p)
   self.p = p
-  self.give = 16
+  self.give = -10
   self.pos = vec(0, 0)
   self.min = vec(0, 0)
   self.max = vec(128, 0)
@@ -1334,14 +1491,19 @@ end
 function cam:update()
   local target =
       self.p.pos - self.center
+  local target_cam =
+      self.pos
+        :clamp(
+		        target - self.give,
+		        target + self.give)
+        :clamp(
+          self.min,
+          self.max)
+
   self.pos =
-    self.pos
-      :clamp(
-		      target - self.give,
-		      target + self.give)
-      :clamp(
-        self.min,
-        self.max)
+      self.pos:push_towards(
+        target_cam,
+        1)
 end
 
 function cam:draw()
@@ -1373,14 +1535,16 @@ function reset()
       imp(vec(112, -15),
           --[[left=]]true),
     }),
-    wave(80, {
-      seeker(vec(64, -5)),
+    wave(100, {
+      seeker(vec(100, -5)),
     }, {
       spawn_health=true
     }),
   }
 
-  state.enemies = {}
+  state.enemies = {
+    soul(vec(200, 50))
+  }
   state.bullets = {}
   state.particles = {}
   state.pickups = {}
@@ -1453,9 +1617,9 @@ function _update60()
   end
 
   -- particles
-  for p in all(state.particles)
+  for pr in all(state.particles)
   do
-    p:update()
+    pr:update()
   end
   
   -- clear dead stuff
@@ -1488,8 +1652,32 @@ function draw_ui()
     		  114 + nsin(time()) * 1.8,
       		4)
   end
+  
+  print(state.player.life,
+        0, 0, 6)
+end
 
-  print(state.player.life)
+-- gets all entities that can
+-- be sorted by y-pos to draw
+function all_entities(state)
+  local ents = {}
+  if state.player.life > 0
+  then
+    add(ents, state.player)
+  end
+  for e in all(state.enemies)
+  do
+    add(ents, e)
+  end
+  for b in all(state.bullets)
+  do
+    add(ents, b)
+  end
+  for pr in all(state.particles)
+  do
+    add(ents, pr)
+  end
+  return ents
 end
 
 function _draw()
@@ -1499,26 +1687,16 @@ function _draw()
 
   map(0, 0, 0, 0)
   random_tiles:draw()
-
-  for e in all(state.enemies)
-  do
-    e:draw()
-  end
-
-  if state.player.life > 0 then  
-    state.player:draw()
-  end
-
-  for p in all(state.particles)
-  do
-    p:draw()
-  end
-
-  for b in all(state.bullets)
-  do
-    b:draw()
-  end
   
+  ents = all_entities(state)
+  sort(ents, function(x, y)
+    return x.pos.y > y.pos.y
+  end)
+  for ent in all(ents)
+  do
+    ent:draw()
+  end
+
   for pi in all(state.pickups)
   do
     pi:draw()
@@ -1596,15 +1774,34 @@ __sfx__
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010a00200005300000000000000000053000000000000000000530000000000000000005300000000000000000053000001960000000000531a60000000000000005300000000531a600186531a6531865318653
+010a00200005300000000530000024653000000005300000000530000000053000002465300000000530000003053000000005300000246530000000053000000205300000020530000024653246530065500000
+011400201855300053025000250018053020530250002500000531105302500025001305309053025000250018553000530250002500180530205302500025000005311053025000250013053090530250002500
+01500010003550c300003550000000355000000035503354003550c30000355000000035500000003550c3540c3001a3000e300000001c3000e30000000000000000000000000000000000000000000000000000
+010f00200e4700c7000e7000e700104700c7000e7000e700154700c7000e7000e7000e4700c7000e7000e70021470101000c2000e7000c4700c7000e7000e7000c7000c7000e7000e7000c5000c7000e7000e700
+011400201855300053025520255218053020530255202552000531105302552025521305309053025520255218553000530255202552180530205302552025520005311053025520255213053090530255202552
+011400200e155111550e155111550e15510155111550e15511155101550c15511155101550c15513155111550c15511155101550c1551115513155151550c1551115510155131550e1551515510155111550e155
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 011000000065300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 011000000c65300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000200002c1502a1502715025150221502015020150211501d150201501d1501b1501715014150111500715003150001500010002100001000010000100000000000000000000000000000000000000000000000
+00030000271502a1502b1502d1502f1502e1503015031150000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000100002d2502d25030250302503225035250352503b250372500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000100001342013420144201142014420124201d4201b42018420224201f4201e420163501535012350103500f3500e3500d3500b3500a3500735006350043500000000000000000000000000000000000000000
+__music__
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 41424344
+00 0a424344
+00 0b0c4e44
+03 0b0c0e10
+
