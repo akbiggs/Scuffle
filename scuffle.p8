@@ -1177,12 +1177,75 @@ end
 
 local spike = class.build()
 
+-- i use the frame where the
+-- spikes are out as the frame
+-- to create the bullet
+spike.damaging_sprid = 16
+spike.damaging_time = 20
+
 -- offset is a timing offset
 -- that you can use to make
 -- waves of spikes
 function spike:_init(
     pos, offset)
+  if offset == nil
+  then
+    offset = 0
+  end
+  
+  self.pos = pos
 
+  self.anim = anim_chain({
+    anim(20, 20, false, 100),
+    anim(18, 18, false, 40),
+    anim(16, 16, false,
+         spike.damaging_time),
+  }, --[[is_loop=]]true)
+   
+  -- offset spike timing by
+  -- pushing the animation
+  -- forward
+  for i=0,offset
+  do
+    self.anim:update()
+  end
+  
+  -- a pile of hacks to make
+  -- the spikes not crash the
+  -- game as enemies
+  self.life = 30000
+  self.invuln_cooldown = 30000
+  self.hitstun_cooldown = 30000
+end
+
+function spike:update(
+    player, bullets)
+  local old_sprid =
+      self.anim.sprid
+  self.anim:update()
+  if old_sprid !=
+     spike.damaging_sprid and
+     self.anim.sprid ==
+     spike.damaging_sprid
+  then
+    -- create an invisible
+    -- bullet that lasts as long
+    -- as the spikes-out anim
+    add(bullets,
+        bullet(
+          -- invisible
+          anim_single(9),
+          self.pos,
+          vec(0, 0),
+          spike.damaging_time,
+          --[[is_enemy=]]true,
+          --[[left=]]false))
+  end
+end
+
+function spike:draw()
+  spr(self.anim.sprid,
+      self.pos.x, self.pos.y)
 end
 
 -- enemy waves
@@ -1711,8 +1774,33 @@ function get_stage_2_waves()
     wave(100, {
       seeker(vec(140, -30)),
       seeker(vec(10, 140)),
+    }),
+    wave(0, {
+      spike(vec(248, 32)),
+      spike(vec(248, 40)),
+      spike(vec(248, 48)),
+      spike(vec(248, 56)),
+      spike(vec(248, 64)), 
+      spike(vec(248, 72)), 
+      spike(vec(248, 80)),
+      
+      spike(vec(272, 32)),
+      spike(vec(272, 40)),
+      spike(vec(272, 48)),
+      spike(vec(272, 56)),
+      spike(vec(272, 64)), 
+      spike(vec(272, 72)), 
+      spike(vec(272, 80)),
+      
+      spike(vec(296, 32)),
+      spike(vec(296, 40)),
+      spike(vec(296, 48)),
+      spike(vec(296, 56)),
+      spike(vec(296, 64)), 
+      spike(vec(296, 72)), 
+      spike(vec(296, 80)),
     }, {
-      spawn_health=true,
+      lock_cam=false,
     }),
   }
 end
