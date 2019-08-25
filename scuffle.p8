@@ -302,7 +302,7 @@ anim = class.build()
 
 function anim:_init(
     start_sprid, end_sprid,
-    is_loop, duration)
+    is_loop, duration, offset)
   -- duration is how many ticks
   -- each frame should last
   duration = duration or 1
@@ -311,20 +311,21 @@ function anim:_init(
   self.end_sprid = end_sprid
   self.is_loop = is_loop
   self.duration = duration
-  self.ticks = 0
-    
-  self.sprid = start_sprid
-  self.done = false
+  self.offset = offset or vec(0,0)
+
+  self:reset()
 end
 
 -- a single-frame animation
 -- useful for passing sprites
 -- to functions that expect
 -- animations
-function anim_single(sprid)
+function anim_single(sprid,
+    duration, offset)
   return anim(
       sprid, sprid,
-      --[[is_loop=]]false)
+      --[[is_loop=]]false,
+      duration, offset)
 end
 
 function anim:reset()
@@ -364,6 +365,15 @@ function anim:update()
   end
 end
 
+function anim:draw(pos, flip_x)
+  spr(
+    self.sprid,
+    pos.x + self.offset.x,
+    pos.y + self.offset.y,
+    1, 1,
+    flip_x)
+end
+
 -- creates an animation
 -- that chains together
 -- several animation instances.
@@ -372,10 +382,19 @@ anim_chain = class.build()
 function anim_chain:_init(
     anims, is_loop)
   self.anims = anims
-  self.current = 1
   self.is_loop = is_loop
+  self:reset()
+
+  self.duration = 0
+  for anim in all(anims) do
+    self.duration += anim.duration
+  end
+end
+
+function anim_chain:reset()
+  self.current = 1
   self.done = false
-  self.sprid = anims[1].sprid
+  self.sprid = self.anims[1].sprid
 end
 
 function anim_chain:anim()
@@ -414,6 +433,11 @@ function anim_chain:update()
     -- so this chain is done
     self.done = true
   end
+end
+
+function anim_chain:draw(
+    pos, flip_x)
+  self:anim():draw(pos, flip_x)
 end
 
 -- button helpers
@@ -538,7 +562,11 @@ function bullet:collide(other)
     then
       bullet.life = 0
     end
-    other.life -= 1
+    if other.damage then
+      other:damage(1)
+    else
+      other.life -= 1
+    end
     return true
   end
   return false
@@ -562,11 +590,8 @@ function bullet:reflect()
 end
 
 function bullet:draw()
-  spr(self.anim.sprid,
-      self.pos.x, self.pos.y,
-      1, 1,
-      -- flip_x
-      self.left)       
+  self.anim:draw(
+    self.pos, self.left)
 end
 
 -- this is game update stuff,
@@ -715,8 +740,15 @@ function walker:_init(pos)
   self.invuln_cooldown = 0
   self.hitstun_cooldown = 0
   
-  self.anim_idx = 1
-  self.anim_len = 60
+  self.stand_anim =
+    anim_single(68)
+  self.walk_anim =
+    anim_chain({
+      anim_single(69, 30),
+      anim_single(68, 30),
+    },
+    true)
+  self.anim = self.stand_anim
 end
 
 function walker:walk_towards(
@@ -745,27 +777,48 @@ function walker:walk_towards(
 end
 
 function walker:swing(bullets)
-  self.swing_cooldown = 100
-  local bullet_offset =
-      ternary(
-          self.left,
-          vec(-8, 0),
-          vec(8, 0))
-  add(bullets,
-      bullet(
-          anim(16, 20, false,
-               6),
-          self.pos +
-              bullet_offset,
-          vec(0, 0),
-          30,
-          --[[is_enemy]]true,
-          self.left,
-          {
-            destroy_on_hit=false,
-            deadly_start=25,
-            deadly_end=5,
-          }))
+  local bullet_pos =
+    vec(
+      ternary(self.left, -6, 6),
+      0)
+      + self.pos
+
+  local anim =
+  		anim_chain {
+		    anim_single(
+		      66, 4, vec(0, 1)),
+		    anim_single(66, 40),
+		    anim_single(67, 2),
+		    anim_single(64, 20),
+    }
+
+  self.swing_cooldown = anim.duration
+  self.walk_cooldown = anim.duration
+  self.bullet =
+    bullet(
+      anim,
+      bullet_pos,
+      vec(0, 0),
+      anim.duration,
+      --[[is_enemy]]true,
+      self.left,
+      {
+        destroy_on_hit=false,
+        deadly_start=22,
+        deadly_end=20,
+      })
+
+  add(bullets, self.bullet)
+end
+
+function walker:damage(amount)
+  self.life = max(
+    0, self.life - amount)
+  if self.life == 0
+      and self.bullet then
+    self.bullet.life = 0
+    self.bullet = nil
+  end
 end
 
 function walker:run_ai(
@@ -793,6 +846,10 @@ end
 
 function walker:update(
     player, bullets)
+  if self.bullet
+      and self.bullet.life == 0 then
+    self.bullet = nil
+  end
   if player.life <= 0 then
     return
   end
@@ -820,12 +877,13 @@ function walker:update(
       movement_max)
 
   if self.vel:mag() > 0 then
-    self.anim_idx =
-      wrap_idx(
-        self.anim_idx + 1,
-        self.anim_len)
+    if self.anim != self.walk_anim
+    then
+      self.walk_anim:reset()
+    end
+    self.anim = self.walk_anim
   else
-    self.anim_idx = 1
+    self.anim = self.stand_anim
   end
 end
 
@@ -839,26 +897,17 @@ function walker:draw()
   palt(14, true)
   palt(0, false)
 
-  -- selet walk anim frame
-  local sprid = ternary(
-    self.vel:mag() > 0 and
-      self.anim_idx <=
-        self.anim_len / 2,
-    69,
-    68)
-  spr(sprid,
-    self.pos.x,
-    self.pos.y,
-    1, 1,
-    -- flip_x
-    self.left)
+  self.anim:draw(
+    self.pos, self.left)
 
   -- overlay dragged sword
-  spr(70,
-    self.pos.x,
-    self.pos.y,
-    1, 1,
-    self.left)
+  if not self.bullet then
+		  spr(70,
+		    self.pos.x,
+		    self.pos.y,
+		    1, 1,
+		    self.left)
+		end
 
   palt(14, false)
   palt(0, true)
@@ -1203,7 +1252,6 @@ player.skin_colors = {
 player.hair_colors = {
   0, 6, 10
 }
-player.walk_anim_len = 20
 
 function player:_init(pos)
   self.pos = vec(pos)
@@ -1221,9 +1269,17 @@ function player:_init(pos)
   self.hair_color =
       rnd_in(player.hair_colors)
 
-  self.walk_anim_idx = 1
-  self.walk_anim_len =
-      player.walk_anim_len
+  self.stand_anim =
+    anim_single(1)
+  self.walk_anim =
+    anim_chain(
+      {
+		      anim_single(
+		        2, 5, vec(0, -1)),
+		      anim_single(1, 5),
+		    },
+		    true)
+  self.anim = self.stand_anim
 end
 
 function player:vulnerable()
@@ -1330,21 +1386,24 @@ function player:update(
           movement_max.y))
 
   if self.vel:mag() > 0 then
-    self.walk_anim_idx =
-		    wrap_idx(
-        self.walk_anim_idx + 1,
-        self.walk_anim_len)
+    if self.anim != self.walk_anim
+    then
+      self.walk_anim:reset()
+    end
+    self.anim = self.walk_anim
   else
-    self.walk_anim_idx = 1
+    self.anim = self.stand_anim
   end
-
+  self.anim:update()
 end
 
 function player:draw()
+   -- shadow
   spr(5,
     self.pos.x,
     self.pos.y + 1)
 
+  -- maybe blink if invuln
   if self.invuln_cooldown % 3 != 0
   then
     return
@@ -1354,18 +1413,8 @@ function player:draw()
   pal(12, self.skin_color)
   pal(11, self.hair_color)
   
-  if self.vel:mag() > 0 and
-      self.walk_anim_idx
-        <= self.walk_anim_len / 2 then
-    spr(2,
-      self.pos.x,
-      self.pos.y - 1,
-      1, 1, self.left)
-  else
-		  spr(1,
-      self.pos.x, self.pos.y,
-      1, 1, self.left)
-  end
+  self.anim:draw(
+    self.pos, self.left)
 
   palt(14, false)
   pal(12, 12)
@@ -2083,9 +2132,9 @@ dddd222ddddd222dd2ddddddd2dddddddddd222d00000000000000000000000000000000dddddddd
 00000000000076670000760000777770ee55005eeee555eeeeeeeeeeeee50eeeeeeeeeeeeeeeeeeee222f88feee2f88fe880eeeeeeeeeeeeeee22eeeeeeeeeee
 00000000007767770077600000777770ee55005eee55005eeeeeeeeeee500eeeeeeeeeeeeeeeeeee2222800eee22800ef8082eeeefeee222eee22eeeeeeeeeee
 44000000476677774760000044677777e555005eee55005eeeeeeeeeee5000eeee50eeeeeeeeeeee2222888eee22888ee88222eee808222eefe222eeeeeeeeee
-47700000447777774400000047766777e55555eee555005eeee4eeeeee5555eeee5000eeeeeeeeee222288eeee2228eeee82228ee8022228e80222e8eeeeeeee
-00677000007777770000000000677677e55555eee55555eeee764eeee55455eee555555eee5555ee22e2888eee22288eee2222eeef82228ee808228eefeeeeee
-00006700007777700000000000006767e55555eee55555eee76eeeee557745ee5555455e5555455e2eee88eeee2e88eeeee2228eeee82228ef882228e802228e
+46700000447777774400000047766777e55555eee555005eeee4eeeeee5555eeee5000eeeeeeeeee222288eeee2228eeee82228ee8022228e80222e8eeeeeeee
+00670000007777770000000000677677e55555eee55555eeee764eeee55455eee555555eee5555ee22e2888eee22288eee2222eeef82228ee808228eefeeeeee
+00067700007777700000000000006767e55555eee55555eee76eeeee557745ee5555455e5555455e2eee88eeee2e88eeeee2228eeee82228ef882228e802228e
 00000670000777700000000000000677555555ee555555ee76eeeeee776eeeee777774ee777774eeeee8e8eeeee8e8eeeeee2eeeeeeeeeeeeeeeeeeeef822228
 __map__
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
