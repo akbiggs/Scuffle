@@ -438,7 +438,19 @@ function btnjp(i)
   -- todo: add support for more
   --       than one player
   return btn(i) and
-         not prev_btn[i]
+         not prev_btn[i+1]
+end
+
+-- update state used by btnjp
+-- call this at the end of
+-- every update
+function update_prev_btn()
+  prev_btn[1] = btn(0)
+  prev_btn[2] = btn(1)
+  prev_btn[3] = btn(2)
+  prev_btn[4] = btn(3)
+  prev_btn[5] = btn(4)
+  prev_btn[6] = btn(5)
 end
 
 -- life utils
@@ -1458,8 +1470,7 @@ end
 
 tile_gen = class.build()
 
-function tile_gen:_init(palette)
-  self.palette = palette
+function tile_gen:_init()
   self.deets = {}
   local wall_deet_ids = {
       35, 36, 37, 38, 53
@@ -1484,11 +1495,6 @@ function tile_gen:_init(palette)
 end
 
 function tile_gen:draw()
-  pal(1, self.palette.outline)
-  pal(2, self.palette.crack)
-  pal(9, self.palette.sky)
-  pal(13, self.palette.main)
-  
   rectfill(0,0,128*4,4*8-1,9)
   rectfill(0,4*8,128*4,12*8-1,13)
   clip(0,0,128,14*8)
@@ -1496,11 +1502,6 @@ function tile_gen:draw()
     spr(d.t, d.x, d.y)
   end
   clip()
-  
-  pal(1, 1)
-  pal(2, 2)
-  pal(9, 9)
-  pal(13, 13)
 end
 -->8
 -- camera
@@ -1545,15 +1546,27 @@ end
 
 local state = {}
 
-function reset()
-  -- useful for game over state
-  -- resetting
-  state.player = player(
-      vec(60, 60))
-  state.camera = cam(
-      state.player)
+function get_music(
+    stage, is_restart)
+  -- todo: stage 2, stage 3
   
-  state.waves = {
+  if (is_restart) return 5
+  return 0
+end
+
+-- player xpos that ends the
+-- stage
+function get_stage_end(
+    stage)
+  -- todo: stage 2, stage 3
+  
+  return 128*3 + 16
+end
+  
+function get_waves(stage)
+  -- todo: stage 2, stage 3
+
+  return {
     wave(60, {
       walker(vec(110, 30)),
     		walker(vec(10, 60)),
@@ -1591,46 +1604,138 @@ function reset()
       spawn_health=true
     }),
   }
-
-  state.enemies = {}
-  state.bullets = {}
-  state.particles = {}
-  state.pickups = {}
-  
-  -- player xpos that ends the
-  -- stage
-  state.stage_end = 128*3 + 16
 end
 
-function get_tile_gen_palette(
-    state)
+function get_palette(stage)
+  if state.stage == 2
+  then
+    -- shades of red
+    return {
+      ground=9,
+      outline=5,
+      crack=4,
+      sky=15,
+    }
+  end
+
   return {
-    main=13,
+    ground=13,
     sky=6,
     crack=2,
     outline=1,
   }
 end
 
-function _init()
-  reset()
-  random_tiles = tile_gen(
-      get_tile_gen_palette(
-          state))
-  state.intro_life = 1000
-  state.music_intro = true
-  -- false for cool intro
-  state.skip_intro = false
-  state.intro_done = false
-  state.stage_done = false
-  state.prompt_move_dist = 0
-  music(0)
+function get_intro_life(stage)
+  if stage == 2 then
+    return 250
+  end
+  return 1000
 end
 
-function _update60()
-  -- intro junk
-  state.intro_life = max(0,
-      state.intro_life - 1)
+-- common initialization
+-- logic between starting a
+-- stage for the first time
+-- and restarting
+function init_stage(state)
+  state.player = player(
+      vec(60, 60))
+  state.camera = cam(
+      state.player)
+	
+  state.enemies = {}
+  state.bullets = {}
+  state.particles = {}
+  state.pickups = {}
+
+  state.stage_end =
+      get_stage_end(
+          state.stage)
+  
+  state.waves = get_waves(
+      state.stage)
+end
+
+-- call this the first time
+-- you enter a stage
+function start_stage(
+    stage, state)
+  local song = get_music(
+      stage,
+      --[[is_restart=]]false)
+  music(song)
+
+  state.stage = stage
+  
+  state.intro_life =
+      get_intro_life(stage)
+  state.stage_done = false
+  
+  -- stage 1 has a special
+  -- musical intro before
+  -- the prompt to move shows
+  -- up
+  if stage == 1
+  then
+  		state.music_intro = true
+    state.prompt_move_dist = 0
+  end
+  
+  state.stage_done = false
+  state.skip_intro = false
+  state.intro_done = false
+  
+  init_stage(state)
+end
+
+-- call this instead of
+-- start_stage when restarting
+-- a stage
+function restart_stage(state)
+  local song = get_music(
+      state.stage,
+      --[[is_restart]]true)
+  music(song)
+  state.skip_intro = true
+  
+  init_stage(state)
+end
+
+function next_stage(state)
+  start_stage(state.stage + 1,
+              state)
+end
+
+function _init()
+  -- the music intro is long,
+		-- so if the user is spamming
+		-- buttons, skip it
+		state.skip_intro_presses = 0
+		
+  start_stage(1, state)
+		
+  -- uncomment this to
+  -- skip long intro
+  --restart_stage(state)
+  
+  random_tiles = tile_gen()
+end
+
+-- a bunch of junk to align
+-- the start of the game with
+-- music
+function update_music_intro(
+    state)
+  if btnjp(❎) or btnjp(🅾️)
+  then
+    state.skip_intro_presses += 1
+    if state.skip_intro_presses
+       >= 8
+    then
+      state.skip_intro = true
+    end
+  end
+  
   local old_music_intro =
       state.music_intro
   state.music_intro =
@@ -1647,12 +1752,25 @@ function _update60()
     state.intro_done = true
     state.prompt_move_dist = 40
   end
+end
+
+function _update60()
+  -- stage intro junk
+  state.intro_life = max(0,
+      state.intro_life - 1)
+ 
+  if state.music_intro
+  then
+    update_music_intro(state)
+  end
   
   if state.intro_life > 0
   then
+    update_prev_btn()
     return
   end
-  
+
+  -- stage completion junk
   if not state.stage_done and
      state.player.pos.x >
      state.stage_end
@@ -1660,6 +1778,13 @@ function _update60()
     state.stage_done = true
     music(-1)
     sfx(26)
+  end
+  
+  -- stage restarting junk
+  if state.player.life <= 0 and
+     btnjp(❎)
+  then
+    -- todo
   end
   
   -- waves
@@ -1681,7 +1806,6 @@ function _update60()
              cam_locked,
              state.bullets)
   end
-
   
   -- camera
   if not cam_locked
@@ -1747,6 +1871,8 @@ function _update60()
   then
     state.prompt_move_dist = 20
   end
+
+  update_prev_btn()
 end
 
 function draw_intro()
@@ -1834,8 +1960,21 @@ function _draw()
 
   state.camera:draw()
 
+  local palette = get_palette(
+      state.stage)
+  
+  pal(1, palette.outline)
+  pal(2, palette.crack)
+  pal(9, palette.sky)
+  pal(13, palette.ground)
+
   random_tiles:draw()
   map(0, 0, 0, 0)
+  
+  pal(1, 1)
+  pal(2, 2)
+  pal(9, 9)
+  pal(13, 13)
   
   ents = all_entities(state)
   sort(ents, function(x, y)
@@ -1939,7 +2078,7 @@ __sfx__
 00030000271502a1502b1502d1502f1502e1503015031150000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000100002d2502d25030250302503225035250352503b250372500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000100001342013420144201142014420124201d4201b42018420224201f4201e420163501535012350103500f3500e3500d3500b3500a3500735006350043500000000000000000000000000000000000000000
-001700000264302600026430260002633026000262302600026130260002613006000060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000e00000264302600026430260002633026000262302600026130260002613006000060000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
