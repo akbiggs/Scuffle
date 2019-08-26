@@ -1909,10 +1909,9 @@ end
 function get_stage_1_waves()
   return {
     wave(60, {
-      seeker(vec(100, -5)),
-      --walker(vec(110, 30)),
-    		--walker(vec(10, 60)),
-    }, {spawn_health = true}),
+      walker(vec(110, 30)),
+    		walker(vec(10, 60)),
+    }),
     wave(110, {
       imp(vec(8, -5),
           --[[left=]]false),
