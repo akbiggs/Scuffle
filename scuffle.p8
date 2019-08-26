@@ -207,6 +207,14 @@ function vec:clamp(vmin, vmax)
             vmax.y))
 end
 
+function sprv(
+		  sprid, pos, dimen,
+		  flipx, flipy)
+		dimen = dimen or {x = nil, y = nil}
+		return spr(sprid, pos.x, pos.y,
+  		  dimen.x, dimen.y, flipx, flipy)
+end
+
 -- push a vector towards target
 -- |t| by delta |d|
 function vec:push_towards(t, d)
@@ -255,8 +263,6 @@ function hbox:_init(pos, size)
   self.size = vec(size)
 end
 
--- get whether vector |v| is
--- inside the hitbox
 function hbox:contains(v)
   return in_range(
       v.x,
@@ -304,8 +310,6 @@ function anim:_init(
     start_sprid, end_sprid,
     is_loop, duration, offset,
     pal_tbl, palt_tbl)
-  -- duration is how many ticks
-  -- each frame should last
   duration = duration or 1
  
   self.start_sprid = start_sprid
@@ -319,10 +323,6 @@ function anim:_init(
   self:reset()
 end
 
--- a single-frame animation
--- useful for passing sprites
--- to functions that expect
--- animations
 function anim_single(
     sprid, ...)
   return anim(
@@ -394,9 +394,6 @@ function anim:draw(pos, flip_x)
   if (self.palt_tbl) palt()
 end
 
--- creates an animation
--- that chains together
--- several animation instances.
 anim_chain = class.build()
 
 function anim_chain:_init(
@@ -444,16 +441,9 @@ function anim_chain:update()
     self:anim():reset()
   elseif self.is_loop
   then
-    -- we're done the last anim
-    -- in a loop, so restart
-    -- loop
     self.current = 1
-
     self:anim():reset()
   else
-    -- we're done the last anim
-    -- and we're not looping,
-    -- so this chain is done
     self.done = true
   end
 end
@@ -474,21 +464,13 @@ local prev_btn = {
   false,
 }
 
--- is a button just pressed?
--- relies on prev_btn being
--- updated at the end of the
--- game loop
--- different from btnp because
--- it doesn't use keyboard-style
--- repeating 
+-- like btnp, but without keyboard repeating
 function btnjp(i)
-  -- todo: add support for more
-  --       than one player
+  -- todo: add support for more than one player
   return btn(i) and
          not prev_btn[i+1]
 end
 
--- update state used by btnjp
 -- call this at the end of
 -- every update
 function update_prev_btn()
@@ -542,11 +524,9 @@ function bullet:_init(
   -- hitbox size
   self.size = props.size or vec(
       8, 8)
-  -- how many ticks before the
-  -- bullet becomes deadly?
+  -- tics before becomes deadly
   self.deadly_start = props.deadly_start or 30000
-  -- how many ticks before the
-  -- bullet stops being deadly?
+  -- ticks before stops being deadly
 	  self.deadly_end = props.deadly_end or -30000
 
   self.anim = anim
@@ -659,11 +639,6 @@ function update_bullets(state)
         if p.life <= 0
         then
           -- todo: death sfx
-
-          -- timer so the stage
-          -- doesn't restart
-          -- if the player spams
-          -- x when dying
           state.death_timer =
               200
           music(-1)
@@ -709,10 +684,10 @@ function health:update(player)
   
   local hb = hbox(
       self.pos,
-      --[[size=]]vec(8, 8))
+      vec(8, 8))
   local phb = hbox(
       player.pos,
-      --[[size=]]vec(8, 8))
+      vec(8, 8))
   
   if self.life > 0 and
      hb:intersects(phb)
@@ -780,9 +755,6 @@ local movement_min = vec(
 local movement_max = vec(
     30000, 12 * 8 - 8)
 
--- walks towards the player
--- and beats the living ****
--- out of them
 local walker = class.build()
 
 function walker:_init(pos, left)
@@ -1080,8 +1052,6 @@ end
 
 function imp:align_with_player(
     player)
-  -- move down or up towards
-	 -- the player
 		local speed = 0.3
 		self.pos =
 		    self.pos:push_towards(
@@ -1153,10 +1123,6 @@ function imp:draw()
   end
 end
 
--- slime
-
--- todo!!!!
-
 -- seeker
 
 local seeker = class.build()
@@ -1173,11 +1139,6 @@ function seeker:_init(pos)
   -- not used but necessary
   self.hitstun_cooldown = 0
 
-  -- tail is a list of previous
-  -- positions. the last elt
-  -- is the furthest position,
-  -- the first elt is the
-  -- current position
   self.tail = {}
   for i=1,self:tail_end_idx() do
     add(self.tail, self.pos)
@@ -1200,16 +1161,14 @@ function seeker:seek(
           0.025) 
  
   -- to do collisions with the
-  -- eye, put a bullet in the
-  -- eye for one frame
   add(bullets,
       bullet(
           anim_single(0),
           self.pos,
-          --[[vel=]]vec(),
-          --[[life=]]1,
-          --[[is_enemy=]]true,
-          --[[left=]]false,
+          vec(),
+          1,
+          true,
+          false,
           {
             size=vec(4, 4),
           }))
@@ -1262,8 +1221,6 @@ function seeker:update(
         self.tail[i-1]
   end
   
-  -- put the new position at
-  -- the front of the tail
   if self.vel:mag() > self.speed then
     self.vel = self.vel:normalized() * self.speed
   end
@@ -1310,21 +1267,12 @@ function seeker:draw()
 end
 
 -- spikes
--- a spike is an ememy that
--- fires a bullet in-place with
--- no velocity sporadically
 
 local spike = class.build()
 
--- i use the frame where the
--- spikes are out as the frame
--- to create the bullet
 spike.damaging_sprid = 22
 spike.damaging_time = 60
 
--- offset is a timing offset
--- that you can use to make
--- waves of spikes
 function spike:_init(
     pos, offset)
   offset = offset or 0  
@@ -1334,17 +1282,11 @@ function spike:_init(
     21, 22, true,
     spike.damaging_time,
     nil, nil, {14})
-   
-  -- offset spike timing by
-  -- pushing the animation
-  -- forward
+
   for i=1,offset do
     self.anim:update()
   end
   
-  -- a pile of hacks to make
-  -- the spikes not crash the
-  -- game as enemies
   self.life = 30000
   self.invuln_cooldown = 30000
   self.hitstun_cooldown = 30000
@@ -1368,18 +1310,14 @@ function spike:update(
      self.anim.sprid ==
      spike.damaging_sprid
   then
-    -- create an invisible
-    -- bullet that lasts as long
-    -- as the spikes-out anim
     add(bullets,
         bullet(
-          -- invisible
           anim_single(25),
           self.pos,
           vec(),
           spike.damaging_time,
-          --[[is_enemy=]]true,
-          --[[left=]]false))
+          true,
+          false))
   end
 end
 
@@ -1408,9 +1346,6 @@ function wave:_init(
       props.lock_cam != nil,
       props.lock_cam, true)
   
-  -- add startx to enemy pos
-  -- to make calculations
-  -- easier
   for e in all(self.enemies)
   do
     e.pos.x += self.startx
@@ -1444,10 +1379,7 @@ function wave:update(
        #self.enemies == 0 and
        self.spawn_health
     then
-      add(pickups,
-          health(
-              vec(self.startx + 100,
-                  60)))
+      add(pickups,health(vec(self.startx + 100, 60)))
     end
   end
 end
@@ -2114,7 +2046,7 @@ function corpse:draw()
 end
 
 
--- enetity corpses
+-- entitiy corpses
 
 function player_corpse(
     pos, left, hair, skin)
@@ -2238,42 +2170,52 @@ function get_stage_end(
   return 128*3 + 16
 end
 
+function mk_walker(x, y, l)
+  return walker(vec(x, y), l)
+end
+function mk_imp(x, y)
+  return imp(vec(x, y))
+end
+function mk_seeker(x, y)
+  return seeker(vec(x, y))
+end
+function mk_spike(x, y)
+  return spike(vec(x,y))
+end
+
 function get_stage_1_waves()
   return {
     wave(60, {
-      walker(vec(110, 30), true),
-    		walker(vec(10, 60)),
+      mk_walker(110, 30, true),
+      mk_walker(10, 60),
     }),
     wave(110, {
       imp(vec(8, -5),
           --[[left=]]false),
     }),
     wave(130, {
-      walker(vec(20, 70)),
+      mk_walker(20, 70),
     }, {
       lock_cam=false,
     }),
     wave(140, {
-      walker(vec(20, 40)),
+      mk_walker(20, 40),
     }, {
       lock_cam = false,
     }),
     wave(170, {
-      walker(vec(25, 80)),
-      walker(vec(35, 40)),
-      imp(vec(8, -5),
-          --[[left=]]false),
+      mk_walker(25, 80),
+      mk_walker(35, 40),
+      mk_imp(8, -5),
     }, {
       spawn_health = true
     }),
     wave(220, {
-      imp(vec(12, -30),
-          --[[left=]]false),
-      imp(vec(112, -10),
-          --[[left=]]true),
+      mk_imp(12, -30),
+      mk_imp(112, -10),
     }),
     wave(256, {
-      seeker(vec(100, -5)),
+      mk_seeker(100, -5),
     }, {
       spawn_health=true
     }),
@@ -2283,108 +2225,108 @@ end
 function get_stage_2_waves()
   return {
     wave(40, {
-      imp(vec(10, 135)),
-      imp(vec(5, -20)),
-      imp(vec(112, 145), true),
+      mk_imp(10, 135),
+      mk_imp(5, -0),
+      mk_imp(112, 145),
     }),
     wave(70, {
-      walker(vec(10, 40)),
-      walker(vec(15, 55)),
-      walker(vec(8, 75)),
-      walker(vec(112, 48), true),
-      walker(vec(120, 65), true),
+      mk_walker(10, 40),
+      mk_walker(15, 55),
+      mk_walker(8, 75),
+      mk_walker(112, 48, true),
+      mk_walker(120, 65, true),
     }),
     wave(100, {
-      seeker(vec(140, -30)),
-      seeker(vec(-20, 130)),
+      mk_seeker(140, -0),
+      mk_seeker(20, 130),
     }, {
       spawn_health = true,
     }),
     wave(0, {
-      spike(vec(248, 32)),
-      spike(vec(248, 40)),
-      spike(vec(248, 48)),
-      spike(vec(248, 56)),
-      spike(vec(248, 64)),
-      spike(vec(248, 72)),
-      spike(vec(248, 80)),
-      spike(vec(248, 88)),
+      mk_spike(248, 32),
+      mk_spike(248, 40),
+      mk_spike(248, 48),
+      mk_spike(248, 56),
+      mk_spike(248, 64),
+      mk_spike(248, 72),
+      mk_spike(248, 80),
+      mk_spike(248, 88),
       
-      spike(vec(272, 32)),
-      spike(vec(272, 40)),
-      spike(vec(272, 48)),
-      spike(vec(272, 56)),
-      spike(vec(272, 64)),
-      spike(vec(272, 72)),
-      spike(vec(272, 80)),
-      spike(vec(272, 88)),
+      mk_spike(272, 32),
+      mk_spike(272, 40),
+      mk_spike(272, 48),
+      mk_spike(272, 56),
+      mk_spike(272, 64),
+      mk_spike(272, 72),
+      mk_spike(272, 80),
+      mk_spike(272, 88),
       
-      spike(vec(296, 32)),
-      spike(vec(296, 40)),
-      spike(vec(296, 48)),
-      spike(vec(296, 56)),
-      spike(vec(296, 64)),
-      spike(vec(296, 72)),
-      spike(vec(296, 80)),
-      spike(vec(296, 88)),
+      mk_spike(296, 32),
+      mk_spike(296, 40),
+      mk_spike(296, 48),
+      mk_spike(296, 56),
+      mk_spike(296, 64),
+      mk_spike(296, 72),
+      mk_spike(296, 80),
+      mk_spike(296, 88),
       
-      spike(vec(384, 32)),
-      spike(vec(384, 40)),
-      spike(vec(384, 48)),
-      spike(vec(384, 56)),
-      spike(vec(384, 64)),
-      spike(vec(384, 72)),
-      spike(vec(384, 80)),
-      spike(vec(384, 88)),
+      mk_spike(384, 32),
+      mk_spike(384, 40),
+      mk_spike(384, 48),
+      mk_spike(384, 56),
+      mk_spike(384, 64),
+      mk_spike(384, 72),
+      mk_spike(384, 80),
+      mk_spike(384, 88),
       
-      spike(vec(432, 48)),
-      spike(vec(432, 56)),
-      spike(vec(432, 64)),
-      spike(vec(432, 72)),
+      mk_spike(432, 48),
+      mk_spike(432, 56),
+      mk_spike(432, 64),
+      mk_spike(432, 72),
     }, {
       lock_cam=false,
     }),
     wave(280, {
-      imp(vec(  118, -10), true),
-      imp(vec(  112, 130), true),
-      walker(vec(30, 32)),
-      walker(vec(30, 70)),
+      mk_imp( 118, -10),
+      mk_imp( 112, 130),
+      mk_walker(30, 32),
+      mk_walker(30, 70),
     }, {
       spawn_health = true,
     }),
     wave(308, {
-      walker(vec(20, 42)),
-      walker(vec(24, 65)),
-      walker(vec(13, 83)),
+      mk_walker(20, 42),
+      mk_walker(24, 65),
+      mk_walker(13, 83),
 
-      seeker(vec(-40, 10)),
+      mk_seeker(-40, 10),
     }, {
       lock_cam = false,
     }),
-    wave(328, {
-      walker(vec(34, 34)),
-      walker(vec(51, 53)),
-      walker(vec(39, 64)),
+    mk_wave(328, {
+      mk_walker(34, 34),
+      mk_walker(51, 53),
+      mk_walker(39, 64),
     }, {
       lock_cam = false,
     }),
     wave(392, {
-      walker(vec(200,  40), true),
-      walker(vec(200,  60), true),
-      walker(vec(200,  80), true),
+      mk_walker(200,  40, true),
+      mk_walker(200,  60, true),
+      mk_walker(200,  80, true),
     }, {
       lock_cam = true,
       spawn_health = true,
     }),
     wave(496, {
-      imp(vec(100, -80), true),
-      imp(vec(118, -20), true),
-      imp(vec(112, 130), true),
-      imp(vec(107, 190), true),
-      imp(vec(102, 160), true),
-      imp(vec(50,  142)),
-      walker(vec(-20,  30)),
-      walker(vec(-54,  80)),
+      mk_imp(100, -80),
+      mk_imp(118, -20),
+      mk_imp(112, 130),
+      mk_imp(107, 190),
+      mk_imp(102, 160),
+      mk_imp(50,  142),
+      mk_walker(-20,  30),
+      mk_walker(-54,  80),
     }),
   }
 end
@@ -2448,10 +2390,6 @@ function get_player_start_pos(
   return vec(10, 60)
 end
 
--- common initialization
--- logic between starting a
--- stage for the first time
--- and restarting
 function init_stage(state)
   state.stage_end =
       get_stage_end(
@@ -2473,10 +2411,6 @@ function init_stage(state)
 
   if state.stage == 3
   then
-    -- add soul manually to
-    -- enemies so we can walk
-    -- up to it (it's
-    -- convoluted)
     state.soul = soul(
         vec(300, 60),
         state)
@@ -2498,13 +2432,10 @@ function add_particle(p)
   add(state.particles, p)
 end
 
--- call this the first time
--- you enter a stage
 function start_stage(
     stage, state)
   local song = get_music(
-      stage,
-      --[[is_restart=]]false)
+      stage, false)
   music(song)
 
   state.stage = stage
@@ -2513,10 +2444,6 @@ function start_stage(
       get_intro_life(stage)
   state.stage_done = false
   
-  -- stage 1 has a special
-  -- musical intro before
-  -- the prompt to move shows
-  -- up
   if stage == 1
   then
   		state.music_intro = true
@@ -2531,13 +2458,9 @@ function start_stage(
   init_stage(state)
 end
 
--- call this instead of
--- start_stage when restarting
--- a stage
 function restart_stage(state)
   local song = get_music(
-      state.stage,
-      --[[is_restart]]true)
+      state.stage, true)
   music(song)
   state.skip_intro = true
   
@@ -2550,21 +2473,11 @@ function next_stage(state)
 end
 
 function _init()
-  -- the music intro is long,
-		-- so if the user is spamming
-		-- buttons, skip it
 		state.skip_intro_presses = 0
 		
-  start_stage(3, state)
-		
-  -- uncomment this to
-  -- skip long intro
-  --restart_stage(state)
+  start_stage(1, state)
 end
 
--- a bunch of junk to align
--- the start of the game with
--- music
 function update_music_intro(
     state)
   if btnjp(❎) or btnjp(🅾️)
@@ -2587,9 +2500,6 @@ function update_music_intro(
       not state.music_intro)
       or state.skip_intro)
   then
-    -- prompt the user to move
-    -- forward when the music
-    -- pauses
     state.intro_life = 0
     state.intro_done = true
     state.prompt_move_dist = 40
@@ -2671,15 +2581,9 @@ function _update60()
     
     state.camera:update()
 
-    -- don't let the camera
-    -- go back to the left
     state.camera.min.x =
         state.camera.pos.x
     
-    -- stop prompting the player
-    -- to move when the camera
-    -- moves enough (they get
-    -- the point)
     local delta =
         state.camera.pos.x -
         old_campos.x
@@ -2824,8 +2728,6 @@ function draw_cutscene_dialog()
 end
 
 function draw_ui()
-  -- prompt the player to
-  -- advance
   if not any_wave_locking_cam(
       state.waves) and
      (state.soul == nil or
@@ -2845,8 +2747,6 @@ function draw_ui()
   end
 end
 
--- gets all entities that can
--- be sorted by y-pos to draw
 function all_entities(state)
   local ents = {}
   if state.player.life > 0
@@ -2909,8 +2809,6 @@ function _draw()
     pi:draw()
   end
   
-  -- ui is screen-space, so
-  -- reset camera before drawing
   camera()
   draw_ui()
 end
