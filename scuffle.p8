@@ -1315,14 +1315,22 @@ function spike:_init(
   self.life = 30000
   self.invuln_cooldown = 30000
   self.hitstun_cooldown = 30000
+  
+  -- spikes are disabled when
+  -- offscreen for performance
+  self.disabled = true
 end
 
 function spike:update(
     player, bullets)
+  self.disabled = abs(
+      player.pos.x - self.pos.x) > 100
+  
   local old_sprid =
       self.anim.sprid
   self.anim:update()
-  if old_sprid !=
+  if not self.disabled and
+     old_sprid !=
      spike.damaging_sprid and
      self.anim.sprid ==
      spike.damaging_sprid
@@ -1343,6 +1351,8 @@ function spike:update(
 end
 
 function spike:draw()
+  if (self.disabled) return
+  
   self.anim:draw(self.pos)
 end
 
