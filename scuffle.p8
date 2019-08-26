@@ -1766,12 +1766,17 @@ end
 
 cam = class.build()
 
-function cam:_init(p)
+function cam:_init(p, max_x)
+  if max_x == nil
+  then
+    max_x = 128*2
+  end
+
   self.p = p
   self.give = 16
   self.pos = vec()
   self.min = vec()
-  self.max = vec(128*2, 0)
+  self.max = vec(max_x, 0)
   self.center =
       vec(128, 128) / 2
 end
@@ -1806,7 +1811,10 @@ local state = {}
 
 function get_music(
     stage, is_restart)
-  -- todo: stage 3
+  if stage == 3
+  then
+    return 16
+  end
   
   -- stage 2
   if stage == 2
@@ -1824,7 +1832,11 @@ end
 function get_stage_end(
     stage)
   -- todo: stage 2, stage 3
-  
+  if stage == 3
+  then
+    return 128*2
+  end
+
   return 128*3 + 16
 end
 
@@ -1866,14 +1878,6 @@ function get_stage_1_waves()
     }, {
       spawn_health=true
     }),
-  }
-end
-
-function get_stage_3_waves()
-  return {
-    wave(0, {
-      soul(vec(100, 60)),
-    })
   }
 end
 
@@ -1925,6 +1929,14 @@ function get_stage_2_waves()
   }
 end
 
+function get_stage_3_waves()
+  return {
+    wave(0, {
+      soul(vec(100, 60)),
+    })
+  }
+end
+
 function get_waves(stage)
   if stage == 3
   then
@@ -1967,15 +1979,23 @@ function get_intro_life(stage)
   return 1000
 end
 
+function get_player_start_pos(
+    stage)
+  return vec(10, 60)
+end
+
 -- common initialization
 -- logic between starting a
 -- stage for the first time
 -- and restarting
 function init_stage(state)
   state.player = player(
-      vec(60, 60))
+      get_player_start_pos(
+          state.stage))
   state.camera = cam(
-      state.player)
+      state.player,
+      get_stage_end(
+          state.stage) - 128)
 	
   state.enemies = {}
   state.bullets = {}
@@ -2233,7 +2253,7 @@ end
 function draw_stage_3_intro()
   print("scene 3", 48, 64,
         6)
-  print("boss battle!!!!",
+  print("end of the road",
         35, 80, 6)
 end
 
@@ -2625,6 +2645,7 @@ __sfx__
 010d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000655026550065502655
 010d000018500000000e5001a500000000c50015500000000e5001850000000000001a5000000021700000001a700000000000018700000000000015700000001a7000e500187000000000000157001550000000
 011000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+012c00200c6140e611106211162113631156311764117641176411763117631176211762117611176150000017624156411364111641106310e6310c6210c6210c6210c6110c6110c6150c6000c6000000000000
 __music__
 00 01024344
 00 03044344
@@ -2642,7 +2663,7 @@ __music__
 00 0b0c0e10
 00 0b0c0e11
 02 0b0c0e12
-00 41424344
+03 37424344
 00 41424344
 00 41424344
 00 41424344
