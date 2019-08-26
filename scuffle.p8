@@ -1629,6 +1629,9 @@ function soul_dialog:_init(
   self.end_delay = ternary(
       props.end_delay != nil,
       props.end_delay, 20)
+  self.line_delay = ternary(
+      props.line_delay != nil,
+      props.line_delay, 20)
 
   self.lines = lines
   self.spoken_lines = {}
@@ -1643,6 +1646,8 @@ function soul_dialog:_init(
     self.life += self.duration * #self.lines[i]
     add(self.spoken_lines, "")
   end
+  
+  self.life += self.line_delay * (#self.lines-1)
   
   self.start_life =
       self.life - self.start_delay
@@ -1690,10 +1695,14 @@ function soul_dialog:update(
       else
         line = self.lines[
             self.line_idx]
+        -- delay next line
+        -- via glorious hack
+        self.frame = -self.line_delay
       end
     end
        
-    if line != nil
+    if line != nil and
+       self.frame >= 0
     then
       self.spoken_lines[
         self.line_idx] =
@@ -1736,6 +1745,7 @@ function soul:_init(pos, state)
   self.powering_up = false
 
   self.greeting_frames = 0
+  self.angry_frames = 0
   self.dialog = nil
 end
 
@@ -1763,11 +1773,12 @@ function soul:greet(player)
     self.confused = false
     self.shouting = true
     self.dialog = soul_dialog({
-      "so you're a monster too."
+      "so you're a monster too.",
+      "you won't take my fare!",
     }, {
       start_delay=80,
       end_delay=80,
-      color=8
+      color=8,
     }),
     music(10)
     return
@@ -1783,11 +1794,7 @@ function soul:greet(player)
   self.greeting_frames += 1
 end
 
-function soul:shout(player)
-  -- todo
-end
-
-function soul:power_up(player)
+function soul:be_angry(player)
   -- todo
 end
 
@@ -1804,12 +1811,9 @@ function soul:update(
   elseif self.greeting
   then
     self:greet(player)
-  elseif self.shouting
+  elseif self.angry
   then
-    self:shout(player)
-  elseif self.powering_up
-  then
-    self:power_up(player)
+    self:be_angry(player)
   end
   
   if self.dialog != nil
@@ -2575,8 +2579,8 @@ end
 function draw_cutscene_dialog() 
   local c =
       state.dialog.color or 6
-  local x = 4
-  local y = 116
+  local x = 2
+  local y = 114
   if state.dialog.pos
   then
     x = state.dialog.pos.x
