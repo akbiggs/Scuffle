@@ -736,12 +736,14 @@ function walker:_init(pos)
   self.swing_cooldown = 100
   self.life = 3
   
-  self.walk_cooldown = 50
+  self.walk_cooldown = 80
   self.walk_dist = 50
   
   self.invuln_cooldown = 0
   self.hitstun_cooldown = 0
   
+  self.spawn_anim =
+    anim(64, 68, false, 15)
   self.stand_anim =
     anim_single(68)
   self.walk_anim =
@@ -750,7 +752,7 @@ function walker:_init(pos)
       anim_single(68, 30),
     },
     true)
-  self.anim = self.stand_anim
+  self.anim = self.spawn_anim
 end
 
 function walker:walk_towards(
@@ -888,9 +890,10 @@ function walker:update(
       self.walk_anim:reset()
     end
     self.anim = self.walk_anim
-  else
+  elseif self.anim == self.walk_anim then
     self.anim = self.stand_anim
   end
+  self.anim:update()
 end
 
 function walker:draw()
@@ -907,7 +910,8 @@ function walker:draw()
     self.pos, self.left)
 
   -- overlay dragged sword
-  if not self.bullet then
+  if not self.bullet and
+      self.anim != self.spawn_anim then
 		  spr(70,
 		    self.pos.x,
 		    self.pos.y,
