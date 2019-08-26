@@ -1562,11 +1562,110 @@ end
 -- the final boss of the game
 -- who you steal the gold from.
 
+local soul_dialog = class.build()
+
+function soul_dialog:_init(
+    lines, props)
+  self.color = ternary(
+      props.color != nil,
+      props.color, 6)
+  self.duration = ternary(
+      props.duration != nil,
+      props.duration, 3)
+  self.start_delay = ternary(
+      props.start_delay != nil,
+      props.start_delay, 20)
+  self.end_delay = ternary(
+      props.end_delay != nil,
+      props.end_delay, 20)
+
+  self.lines = lines
+  self.spoken_lines = {}
+  self.line_idx = 1
+  self.char_idx = 0
+  self.frame = 0
+
+  self.life = self.start_delay +
+      self.end_delay
+  for i=1,#self.lines
+  do
+    self.life += self.duration * #self.lines[i]
+    add(self.spoken_lines, "")
+  end
+  
+  self.start_life =
+      self.life - self.start_delay
+end
+
+function soul_dialog:update(
+    state)
+  self.life = max(0,
+      self.life - 1)
+  
+  if self.life == 0 then
+    state.dialog = nil
+    return
+  end
+  
+  if self.life > self.start_life
+  then
+    state.dialog = {}
+    state.dialog.lines = {""}
+    return
+  end
+  
+  if self.life <= self.end_delay
+  then
+    return
+  end
+  
+  self.frame += 1
+  if self.frame >= self.duration
+  then
+    self.frame = 0
+    self.char_idx += 1
+    
+    local line = self.lines[
+        self.line_idx]
+    if self.char_idx > #line
+    then
+      self.line_idx += 1
+      self.char_idx = 1
+      
+      if self.line_idx >
+         #self.lines
+      then
+        line = nil
+      else
+        line = self.lines[
+            self.line_idx]
+      end
+    end
+       
+    if line != nil
+    then
+      self.spoken_lines[
+        self.line_idx] =
+          sub(line,
+              1, self.char_idx)
+    end
+  end
+  
+  state.dialog = {}
+  state.dialog.lines =
+      self.spoken_lines
+  state.dialog.color =
+      self.color
+end
+
 local soul = class.build()
 
-function soul:_init(pos)
+function soul:_init(pos, state)
   self.pos = vec(pos)
   self.vel = vec()
+  -- open the floodgates for
+  -- some hacky stuff
+  self.state = state
   
   self.life = 12
   self.skin_color =
@@ -1574,15 +1673,19 @@ function soul:_init(pos)
   self.hair_color = 
       rnd_in(player.hair_colors)
   self.invuln_cooldown = 0
-  self.hitstun_cooldown = 0
+	 self.hitstun_cooldown = 0
   
   player.init_anims(self)
 
   self.left = false
   
   self.unaware = true
-  self.confused = false
-  self.confused_frames = 0
+  self.greeting = false
+  self.shouting = false
+  self.powering_up = false
+
+  self.greeting_frames = 0
+  self.dialog = nil
 end
 
 function soul:react_to_player(
@@ -1590,18 +1693,31 @@ function soul:react_to_player(
   if abs(player.pos.x - self.pos.x) < 45
   then
     self.unaware = false
-    self.confused = true
+    self.greeting = true
+    self.dialog = soul_dialog({
+      "hi! have you seen the ferryman?"
+    }, {
+      start_delay=30,
+      end_delay=80,      
+    })
   end
 end
 
-function soul:be_confused(
-    player)
+function soul:greet(player)
   if self.hitstun_cooldown > 0
   then
     -- we got attacked. we're
     -- becoming hostile, start
     -- the tunez.
     self.confused = false
+    self.shouting = true
+    self.dialog = soul_dialog({
+      "so you're a monster too."
+    }, {
+      start_delay=80,
+      end_delay=80,
+      color=8
+    }),
     music(10)
     return
   end
@@ -1613,7 +1729,15 @@ function soul:be_confused(
     self.left = false
   end
   
-  self.confused_frames += 1
+  self.greeting_frames += 1
+end
+
+function soul:shout(player)
+  -- todo
+end
+
+function soul:power_up(player)
+  -- todo
 end
 
 function soul:update(
@@ -1626,27 +1750,43 @@ function soul:update(
   if self.unaware
   then
     self:react_to_player(player)
-  elseif self.confused
+  elseif self.greeting
   then
-    self:be_confused(player)
-  else
-    -- boss battle!!!!!
+    self:greet(player)
+  elseif self.shouting
+  then
+    self:shout(player)
+  elseif self.powering_up
+  then
+    self:power_up(player)
+  end
+  
+  if self.dialog != nil
+  then
+    self.dialog:update(
+        self.state)
+    
+    if self.dialog.life == 0
+    then
+      self.dialog = nil
+    end
   end
 end
 
 function soul:draw()
-  if self.confused
+  if self.greeting and
+     self.greeting_frames < 30
   then
     local offset = min(
         4,
-        self.confused_frames) +
+        self.greeting_frames) +
         2
      
     local text_pos =
         self.pos + vec(2,
                        -offset) 
     print(
-        "?",
+        "!",
         text_pos.x, text_pos.y,
         6)
   end
@@ -1932,7 +2072,7 @@ end
 function get_stage_3_waves()
   return {
     wave(0, {
-      soul(vec(100, 60)),
+      soul(vec(100, 60), state),
     })
   }
 end
@@ -2078,7 +2218,7 @@ function _init()
 		-- buttons, skip it
 		state.skip_intro_presses = 0
 		
-  start_stage(1, state)
+  start_stage(3, state)
 		
   -- uncomment this to
   -- skip long intro
@@ -2176,7 +2316,9 @@ function _update60()
           state.waves)
 
   local p = state.player
-  if p.life > 0 then
+  if p.life > 0 and
+     state.dialog == nil
+  then
     p:update(state.camera,
              cam_locked,
              state.bullets)
@@ -2211,7 +2353,8 @@ function _update60()
   -- enemies
   for e in all(state.enemies)
   do
-    e:update(p, state.bullets)
+    e:update(p, state.bullets,
+             state)
   end
   
   -- bullets
@@ -2309,7 +2452,36 @@ function draw_intro()
   else
     draw_stage_1_intro()
   end
-  
+end
+
+function draw_player_life_ui()
+  for i = 1,state.player.max_life
+  do
+    spr(
+      ternary(
+        i <= state.player.life,
+        7, 8),
+      4 + i * 8,
+      116)
+  end
+end
+
+function draw_cutscene_dialog() 
+  local c =
+      state.dialog.color or 6
+  local x = 4
+  local y = 116
+  if state.dialog.pos
+  then
+    x = state.dialog.pos.x
+    y = state.dialog.pos.y
+  end
+      
+  for i=1,#state.dialog.lines
+  do
+  		print(state.dialog.lines[i],
+          x, y + (i-1) * 8, c)
+  end
 end
 
 function draw_ui()
@@ -2324,13 +2496,11 @@ function draw_ui()
       		4)
   end
   
-  for i = 1,state.player.max_life do
-    spr(
-      ternary(
-        i <= state.player.life,
-        7, 8),
-      4 + i * 8,
-      116)
+  if state.dialog == nil
+  then
+    draw_player_life_ui()
+  else
+    draw_cutscene_dialog()
   end
 end
 
