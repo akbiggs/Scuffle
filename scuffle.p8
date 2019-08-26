@@ -803,7 +803,7 @@ function walker:swing(bullets)
 		      11, 4, vec(0, 1)),
 		    anim_single(11, 40),
 		    anim_single(12, 2),
-		    anim_single(9, 20),
+		    anim_single(9, 20, vec(0, 2)),
     }
 
   self.swing_cooldown = anim.duration
@@ -864,9 +864,17 @@ end
 
 function walker:update(
     player, bullets)
-  if self.bullet
-      and self.bullet.life == 0 then
-    self.bullet = nil
+  if self.bullet then
+    if self.bullet.life == 0 then
+      self.bullet = nil
+    else
+      self.bullet.pos =
+        vec(
+          ternary(
+            self.left, -6, 6),
+          0)
+          + self.pos
+    end
   end
   if player.life <= 0 then
     return
