@@ -2146,23 +2146,21 @@ end
 
 local state = {}
 
-function get_music(
+function stage_music(
     stage, is_restart)
-  if stage == 3
-  then
-    return 16
+  if stage == 4
+  then return
+  elseif stage == 3
+  then music(16)
+  elseif stage == 2
+  then music(20)
+  elseif is_restart
+  then music(5)
+  else
+    music(0)
   end
-  
-  -- stage 2
-  if (stage == 2) return 20
-  
-  -- stage 1
-  if (is_restart) return 5
-  return 0
 end
 
--- player xpos that ends the
--- stage
 function get_stage_end(
     stage)
   if (stage == 3) return 128*3
@@ -2190,8 +2188,7 @@ function get_stage_1_waves()
       mk_walker(10, 60),
     }),
     wave(110, {
-      imp(vec(8, -5),
-          --[[left=]]false),
+      imp(vec(8, -5)),
     }),
     wave(130, {
       mk_walker(20, 70),
@@ -2360,7 +2357,6 @@ end
 function get_palette(stage)
   if state.stage == 2
   then
-    -- shades of red
     return {
       ground=4,
       outline=9,
@@ -2378,6 +2374,7 @@ function get_palette(stage)
 end
 
 function get_intro_life(stage)
+  if (stage == 4) return 30000
   if stage == 2 or stage == 3
   then
     return 200
@@ -2434,9 +2431,7 @@ end
 
 function start_stage(
     stage, state)
-  local song = get_music(
-      stage, false)
-  music(song)
+  stage_music(stage, false)
 
   state.stage = stage
   
@@ -2459,9 +2454,7 @@ function start_stage(
 end
 
 function restart_stage(state)
-  local song = get_music(
-      state.stage, true)
-  music(song)
+  stage_music(state.stage, true)
   state.skip_intro = true
   
   init_stage(state)
@@ -2475,7 +2468,7 @@ end
 function _init()
 		state.skip_intro_presses = 0
 		
-  start_stage(1, state)
+  start_stage(3, state)
 end
 
 function update_music_intro(
@@ -2531,8 +2524,11 @@ function _update60()
   then
     state.stage_done = true
     state.outro_life = 250
-    music(-1)
-    sfx(26)
+    if state.stage != 3
+    then
+      music(-1)
+      sfx(26)
+    end
   elseif state.stage_done and
          state.outro_life <= 0
   then
@@ -2566,6 +2562,7 @@ function _update60()
 
   local p = state.player
   if p.life > 0 and
+     not state.stage_done and
      state.dialog == nil
   then
     p:update(state.camera,
@@ -2636,6 +2633,15 @@ function _update60()
   update_prev_btn()
 end
 
+function draw_credits()
+  print("the end", 52, 16, 6)
+  print("a game by:", 48, 40, 6)
+  print("dan andrus & alex biggs", 20, 50, 6)
+  print("made for extra credits", 22, 78, 6)
+  print("game jam #5", 45, 88, 6)
+  print("thanks for playing 😐", 24, 112, 12)
+end
+
 function draw_stage_3_intro()
   print("scene 3", 48, 64,
         6)
@@ -2686,7 +2692,10 @@ function draw_stage_1_intro()
 end
 
 function draw_intro()
-  if state.stage == 3
+  if state.stage == 4
+  then
+    draw_credits()
+  elseif state.stage == 3
   then
     draw_stage_3_intro()
   elseif state.stage == 2
