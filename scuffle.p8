@@ -2002,8 +2002,6 @@ end
 
 corpse = class.build()
 
---[[subtracted from vel
-each frame]]
 corpse.friction = 0.0625
 
 function corpse:_init(
@@ -2016,7 +2014,6 @@ function corpse:_init(
   self.fric_delay =
       fric_delay or 0
   
-  -- corpses never disappear
   self.life = 1
 end
 
@@ -2300,7 +2297,7 @@ function get_stage_2_waves()
     }, {
       lock_cam = false,
     }),
-    mk_wave(328, {
+    wave(328, {
       mk_walker(34, 34),
       mk_walker(51, 53),
       mk_walker(39, 64),
@@ -2468,7 +2465,7 @@ end
 function _init()
 		state.skip_intro_presses = 0
 		
-  start_stage(3, state)
+  start_stage(1, state)
 end
 
 function update_music_intro(
@@ -2747,6 +2744,10 @@ function draw_ui()
     		  114 + nsin(time()) * 1.8,
       		4)
   end
+  
+  palt(0, false)
+  rectfill(0,112,128,128,0)
+  palt(0, true)
   
   if state.dialog == nil
   then
