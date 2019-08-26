@@ -2429,8 +2429,6 @@ function start_stage(
   state.intro_done = false
   
   init_stage(state)
-  add(state.pickups,
-    coin(vec(60, 60), vec(-1, -1)))
 end
 
 function restart_stage(state)
