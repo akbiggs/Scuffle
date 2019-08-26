@@ -2046,7 +2046,7 @@ function get_stage_2_waves()
     }, {
       spawn_health = true,
     }),
-    wave(295, {
+    wave(308, {
       walker(vec(20, 42)),
       walker(vec(24, 65)),
       walker(vec(13, 83)),
@@ -2055,7 +2055,7 @@ function get_stage_2_waves()
     }, {
       lock_cam = false,
     }),
-    wave(320, {
+    wave(328, {
       walker(vec(34, 34)),
       walker(vec(51, 53)),
       walker(vec(39, 64)),
@@ -2079,6 +2079,8 @@ function get_stage_2_waves()
       imp(vec(50,  142)),
       walker(vec(-20,  30)),
       walker(vec(-54,  80)),
+      walker(vec(200,  30)),
+      walker(vec(180,  80)),
     }),
   }
 end
