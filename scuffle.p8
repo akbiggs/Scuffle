@@ -2371,12 +2371,9 @@ function get_palette(stage)
 end
 
 function get_intro_life(stage)
+  if (stage == 1) return 1200
   if (stage == 4) return 30000
-  if stage == 2 or stage == 3
-  then
-    return 200
-  end
-  return 1000
+  return 200
 end
 
 function get_player_start_pos(
@@ -2630,62 +2627,65 @@ function _update60()
   update_prev_btn()
 end
 
+function print_center(s, y, c)
+  return print(s, 64 - (#s * 2), y, c)
+end
+
 function draw_credits()
-  print("the end", 52, 16, 6)
-  print("a game by:", 48, 40, 6)
-  print("dan andrus & alex biggs", 20, 50, 6)
-  print("made for extra credits", 22, 78, 6)
-  print("game jam #5", 45, 88, 6)
-  print("thanks for playing 😐", 24, 112, 12)
+  print_center("the end", 16, 6)
+  print_center("a game by", 40, 6)
+  print_center("dan andrus & alex biggs", 50, 6)
+  print_center("made during", 78, 6)
+  print_center("extra credits game jam #5", 88, 6)
+  print_center("thanks for playing 😐", 112, 12)
 end
 
 function draw_stage_3_intro()
-  print("scene 3", 48, 64,
-        6)
-  print("end of the road",
-        35, 80, 6)
+  print_center("scene 3", 48, 6)
+  print_center("a new monster", 64, 6)
 end
 
 function draw_stage_2_intro()
-		print("scene 2", 48, 64,
-		      6)
-		print("electric boogaloo",
-		      28, 80, 6)
+  print_center("scene 2", 48, 6)
+		print_center("torment", 64, 6)
 end
 
+local poem = {
+  "a lonely soul",
+  "without an heir",
+  "cannot afford",
+  "the ferryman's fare",
+  "for coin is passed",
+  "unto the dead",
+  "when placed upon their",
+  "cold, still head",
+  "this side of styx",
+  "will be their doom",
+  "'less they prucure",
+  "two gold doubloons",
+}
+
+function print_measure(i)
+  local y = i * 8 + flr((i+1)/2)*4 - 4
+  print(poem[i], 12, y, 6)
+  print(poem[i+1], 12, y+8, 6)
+end  
+
 function draw_stage_1_intro()
-  if state.intro_life < 250
+  if state.intro_life < 200
   then
-		  print("scene 1", 48, 64,
-		        6)
-		  print("the journey begins",
-		        28, 80, 6)
+		  print_center("scene 1", 48, 6)
+		  print_center("on dead shores", 64, 6)
 		  return
 	 end
 	 
-	 print(
-	     "\"if 'cross styx you",
-	     8, 20, 6)
-	 print(
-	     "wish passage,",
-	     12, 28, 6)
-	 
-	 if state.intro_life < 750
-	 then
-	   print(
-	       "two gold coins you",
-	       12, 40, 6)
-	   print(
-	       "must scavenge.",
-	       12, 48, 6)
-	 end
-	 
-	 if state.intro_life < 425
-	 then
-	   print(
-	       "good luck!\"",
-	       80, 60, 6)
-	 end
+	 local max_life = get_intro_life(state.stage)-350
+	 for i=1,(
+	   ceil(
+	     (max_life-state.intro_life+350)/(max_life/6)))
+	 do
+	   print_measure((i-1)*2+1)
+  end
 end
 
 function draw_intro()
