@@ -2002,8 +2002,6 @@ end
 
 corpse = class.build()
 
---[[subtracted from vel
-each frame]]
 corpse.friction = 0.0625
 
 function corpse:_init(
@@ -2016,7 +2014,6 @@ function corpse:_init(
   self.fric_delay =
       fric_delay or 0
   
-  -- corpses never disappear
   self.life = 1
 end
 
@@ -2146,23 +2143,21 @@ end
 
 local state = {}
 
-function get_music(
+function stage_music(
     stage, is_restart)
-  if stage == 3
-  then
-    return 16
+  if stage == 4
+  then return
+  elseif stage == 3
+  then music(16)
+  elseif stage == 2
+  then music(20)
+  elseif is_restart
+  then music(5)
+  else
+    music(0)
   end
-  
-  -- stage 2
-  if (stage == 2) return 20
-  
-  -- stage 1
-  if (is_restart) return 5
-  return 0
 end
 
--- player xpos that ends the
--- stage
 function get_stage_end(
     stage)
   if (stage == 3) return 128*3
@@ -2190,8 +2185,7 @@ function get_stage_1_waves()
       mk_walker(10, 60),
     }),
     wave(110, {
-      imp(vec(8, -5),
-          --[[left=]]false),
+      imp(vec(8, -5)),
     }),
     wave(130, {
       mk_walker(20, 70),
@@ -2360,7 +2354,6 @@ end
 function get_palette(stage)
   if state.stage == 2
   then
-    -- shades of red
     return {
       ground=4,
       outline=9,
@@ -2379,7 +2372,8 @@ end
 
 function get_intro_life(stage)
   if (stage == 1) return 1200
-	 return 200
+  if (stage == 4) return 30000
+  return 200
 end
 
 function get_player_start_pos(
@@ -2431,9 +2425,7 @@ end
 
 function start_stage(
     stage, state)
-  local song = get_music(
-      stage, false)
-  music(song)
+  stage_music(stage, false)
 
   state.stage = stage
   
@@ -2456,9 +2448,7 @@ function start_stage(
 end
 
 function restart_stage(state)
-  local song = get_music(
-      state.stage, true)
-  music(song)
+  stage_music(state.stage, true)
   state.skip_intro = true
   
   init_stage(state)
@@ -2528,8 +2518,11 @@ function _update60()
   then
     state.stage_done = true
     state.outro_life = 250
-    music(-1)
-    sfx(26)
+    if state.stage != 3
+    then
+      music(-1)
+      sfx(26)
+    end
   elseif state.stage_done and
          state.outro_life <= 0
   then
@@ -2563,6 +2556,7 @@ function _update60()
 
   local p = state.player
   if p.life > 0 and
+     not state.stage_done and
      state.dialog == nil
   then
     p:update(state.camera,
@@ -2637,6 +2631,15 @@ function print_center(s, y, c)
   return print(s, 64 - (#s * 2), y, c)
 end
 
+function draw_credits()
+  print_center("the end", 16, 6)
+  print_center("a game by", 40, 6)
+  print_center("dan andrus & alex biggs", 50, 6)
+  print_center("made during", 78, 6)
+  print_center("extra credits game jam #5", 88, 6)
+  print_center("thanks for playing 😐", 112, 12)
+end
+
 function draw_stage_3_intro()
   print_center("scene 3", 48, 6)
   print_center("a new monster", 64, 6)
@@ -2686,7 +2689,10 @@ function draw_stage_1_intro()
 end
 
 function draw_intro()
-  if state.stage == 3
+  if state.stage == 4
+  then
+    draw_credits()
+  elseif state.stage == 3
   then
     draw_stage_3_intro()
   elseif state.stage == 2
@@ -2738,6 +2744,10 @@ function draw_ui()
     		  114 + nsin(time()) * 1.8,
       		4)
   end
+  
+  palt(0, false)
+  rectfill(0,112,128,128,0)
+  palt(0, true)
   
   if state.dialog == nil
   then
