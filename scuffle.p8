@@ -636,10 +636,7 @@ function update_bullets(state)
     -- handle damage and
     -- pushback
     local pushback =
-        ternary(
-            b.left,
-            vec(-3, 0),
-            vec(3, 0))    
+      ternary(b.left, -3, 3)
     if b.is_enemy
     then
       local p = state.player
@@ -648,7 +645,7 @@ function update_bullets(state)
       then
         p.invuln_cooldown = 100
         p.walk_cooldown = 20
-        p.pos += pushback
+        p.pos += vec(pushback, 0)
         sfx(21)
         
         if p.life <= 0
@@ -675,8 +672,13 @@ function update_bullets(state)
               40
           e.hitstun_cooldown =
               60
-          e.pos += pushback
-          e.vel = pushback / 4
+          e.pos = vec(
+            e.pos.x + pushback,
+            e.pos.y)
+          e.vel = 
+            vec(
+              pushback / 4,
+              e.vel.y)
           sfx(20)
         end
       end
@@ -1202,9 +1204,12 @@ function seeker:update(
   then
     self:seek(player, bullets)
   else
-    -- drop a bit while taking
+    -- veer away while taking
     -- damage
-    self.vel.y += 0.01
+    self.vel =
+      self.vel +
+        vec(0,
+        sign(self.vel.y) * 0.01)
   end
   
     -- push the tail back
@@ -1218,6 +1223,9 @@ function seeker:update(
   
   -- put the new position at
   -- the front of the tail
+  if self.vel:mag() > self.speed then
+    self.vel = self.vel:normalized() * self.speed
+  end
   self.pos += self.vel
   self.tail[1] = self.pos  
 end
@@ -2079,8 +2087,6 @@ function get_stage_2_waves()
       imp(vec(50,  142)),
       walker(vec(-20,  30)),
       walker(vec(-54,  80)),
-      walker(vec(200,  30)),
-      walker(vec(180,  80)),
     }),
   }
 end
