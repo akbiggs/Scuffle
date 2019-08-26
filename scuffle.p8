@@ -521,18 +521,14 @@ function bullet:_init(
         props.reflectable
   end
   
-  -- hitbox size
   self.size = props.size or vec(
       8, 8)
-  -- tics before becomes deadly
   self.deadly_start = props.deadly_start or 30000
-  -- ticks before stops being deadly
 	  self.deadly_end = props.deadly_end or -30000
 
   self.anim = anim
   self.pos = vec(pos)
   self.vel = vec(vel)
-  -- lifetime in ticks
   self.life = life
   self.is_enemy = is_enemy
   self.left = left
@@ -580,13 +576,8 @@ function bullet:reflect()
   self.is_enemy = not self.is_enemy
   self.left = not self.left
 
-  -- give a slight speedup
-  -- for satisfaction
   self.vel *= 1.4
-  -- only allow one reflection
   self.reflectable = false
-  -- add some more life so it
-  -- lasts longer
   self.life += 50
   
   sfx(24)
@@ -597,23 +588,16 @@ function bullet:draw()
     self.pos, self.left)
 end
 
--- this is game update stuff,
--- but i tossed it in here cuz
--- it was really noisy
 function update_bullets(state)
-  -- bullets
   for b in all(state.bullets)
   do
     b:update()
     
-    -- handle reflections
     for ob in all(state.bullets)
     do
       if b != ob and
          ob.reflectable and
          b.is_enemy != ob.is_enemy and
-         -- only reflect bullets
-         -- in opposite direction
          b.left != ob.left and
          b:collide(ob)
       then
@@ -621,8 +605,6 @@ function update_bullets(state)
       end 
     end
 
-    -- handle damage and
-    -- pushback
     local pushback =
       ternary(b.left, -3, 3)
     if b.is_enemy
@@ -638,7 +620,6 @@ function update_bullets(state)
         
         if p.life <= 0
         then
-          -- todo: death sfx
           state.death_timer =
               200
           music(-1)
@@ -702,12 +683,10 @@ end
 
 function health:draw()
   if (self.life <= 0) return
-  
-  -- draw shadow
+
   spr(13, self.pos.x,
     self.pos.y + 1)
 
-  -- flicker towards end of life
   if (in_range(self.life, 100, 200) and flr(self.life / 8) % 3 == 0) return
   if (in_range(self.life, 0, 100) and flr(self.life / 4) % 2 == 0) return
   spr(7, self.pos.x,
@@ -1818,7 +1797,6 @@ function soul:be_angry(player)
     self.angry = false
     self.ded = true
     music(16)
-    -- todo: death sfx
     self.dialog = soul_dialog({
       "... why...?",
       "i'll never see them again...",
@@ -1838,9 +1816,6 @@ function soul:be_angry(player)
         self.coins[2])
   end
 
-  -- in some frames between a
-  -- line of dialogue, shove
-  -- the player back.
   self.angry_frames = min(30000,
       self.angry_frames + 1)
   
@@ -1952,7 +1927,6 @@ function tile_gen:_init(
       39, 40, 54, 55, 56
   }
 
-  -- slice width
   self.s_width = 16
   for s = 1,flr(width / self.s_width)
   do
@@ -2041,9 +2015,6 @@ function corpse:draw()
     self.pos, self.flip_x)
   palt()
 end
-
-
--- entitiy corpses
 
 function player_corpse(
     pos, left, hair, skin)
@@ -2494,7 +2465,6 @@ function update_music_intro(
 end
 
 function _update60()
-  -- stage intro junk
   state.intro_life = max(0,
       state.intro_life - 1)
  
@@ -2509,7 +2479,6 @@ function _update60()
     return
   end
 
-  -- stage completion junk
   state.outro_life = max(0,
       state.outro_life - 1)
   if not state.stage_done and
@@ -2529,7 +2498,6 @@ function _update60()
     next_stage(state)
   end
 
-  -- stage restarting junk
   state.death_timer = max(0,
       state.death_timer - 1)
   if state.player.life <= 0 and
@@ -2539,7 +2507,6 @@ function _update60()
     restart_stage(state)
   end
   
-  -- waves
   for w in all(state.waves)
   do
     w:update(state.camera,
@@ -2547,7 +2514,6 @@ function _update60()
              state.pickups)
   end
   
-  -- player
   local cam_locked =
       any_wave_locking_cam(
           state.waves)
@@ -2564,7 +2530,6 @@ function _update60()
              state.bullets)
   end
   
-  -- camera
   if not cam_locked
   then
     local old_campos = vec(
@@ -2584,29 +2549,24 @@ function _update60()
             0, delta)
   end
    
-  -- enemies
   for e in all(state.enemies)
   do
     e:update(p, state.bullets,
              state)
   end
   
-  -- bullets
   update_bullets(state)
   
-  -- pickups
   for pi in all(state.pickups)
   do
     pi:update(p)
   end
 
-  -- particles
   for pr in all(state.particles)
   do
     pr:update()
   end
   
-  -- clear dead stuff
   local old_enemy_count =
       #state.enemies
   state.enemies = filter_alive(
@@ -2616,8 +2576,6 @@ function _update60()
   state.particles = filter_alive(
       state.particles)
  
-  -- prompt to move when all the
-  -- enemies are dead
   if old_enemy_count > 0 and
      #state.enemies == 0
   then
