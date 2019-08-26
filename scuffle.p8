@@ -302,7 +302,8 @@ anim = class.build()
 
 function anim:_init(
     start_sprid, end_sprid,
-    is_loop, duration, offset)
+    is_loop, duration, offset,
+    pal_tbl)
   -- duration is how many ticks
   -- each frame should last
   duration = duration or 1
@@ -312,6 +313,7 @@ function anim:_init(
   self.is_loop = is_loop
   self.duration = duration
   self.offset = offset or vec()
+  self.pal_tbl = pal_tbl
 
   self:reset()
 end
@@ -366,6 +368,13 @@ function anim:update()
 end
 
 function anim:draw(pos, flip_x)
+  if self.pal_tbl then
+    for i = 0,15 do
+      if self.pal_tbl[i] then
+        pal(i, self.pal_tbl[i])
+      end
+    end
+  end
   spr(
     self.sprid,
     pos.x + (
@@ -374,6 +383,7 @@ function anim:draw(pos, flip_x)
     pos.y + self.offset.y,
     1, 1,
     flip_x)
+  if (self.pal_tbl) pal()
 end
 
 -- creates an animation
@@ -397,6 +407,9 @@ function anim_chain:reset()
   self.current = 1
   self.done = false
   self.sprid = self.anims[1].sprid
+  for anim in all(self.anims) do
+    anim:reset()
+  end
 end
 
 function anim_chain:anim()
@@ -703,17 +716,17 @@ function health:update(player)
 end
 
 function health:draw()
+  if (self.life <= 0) return
+  
+  -- draw shadow
+  spr(13, self.pos.x,
+    self.pos.y + 1)
+
   -- flicker towards end of life
-  local draw =
-      self.life > 200 or
-      (self.life > 100 and
-       self.life % 3 != 0) or
-      (self.life % 2 != 0)
-  if draw
-  then
-		  spr(7, self.pos.x,
-		      self.pos.y)
-  end
+  if (in_range(self.life, 100, 200) and flr(self.life / 8) % 3 == 0) return
+  if (in_range(self.life, 0, 100) and flr(self.life / 4) % 2 == 0) return
+  spr(7, self.pos.x,
+      self.pos.y + nsin(time()))
 end	
 
 -->8
@@ -736,12 +749,14 @@ function walker:_init(pos)
   self.swing_cooldown = 100
   self.life = 3
   
-  self.walk_cooldown = 50
+  self.walk_cooldown = 80
   self.walk_dist = 50
   
   self.invuln_cooldown = 0
   self.hitstun_cooldown = 0
   
+  self.spawn_anim =
+    anim(64, 68, false, 15)
   self.stand_anim =
     anim_single(68)
   self.walk_anim =
@@ -750,7 +765,12 @@ function walker:_init(pos)
       anim_single(68, 30),
     },
     true)
-  self.anim = self.stand_anim
+  self.hitstun_anim =
+    anim_chain {
+      anim_single(66, 40),
+      anim_single(67, 20),
+    }
+  self.anim = self.spawn_anim
 end
 
 function walker:walk_towards(
@@ -788,10 +808,10 @@ function walker:swing(bullets)
   local anim =
   		anim_chain {
 		    anim_single(
-		      66, 4, vec(0, 1)),
-		    anim_single(66, 40),
-		    anim_single(67, 2),
-		    anim_single(64, 20),
+		      11, 4, vec(0, 1)),
+		    anim_single(11, 40),
+		    anim_single(12, 2),
+		    anim_single(9, 20, vec(0, 2)),
     }
 
   self.swing_cooldown = anim.duration
@@ -852,9 +872,17 @@ end
 
 function walker:update(
     player, bullets)
-  if self.bullet
-      and self.bullet.life == 0 then
-    self.bullet = nil
+  if self.bullet then
+    if self.bullet.life == 0 then
+      self.bullet = nil
+    else
+      self.bullet.pos =
+        vec(
+          ternary(
+            self.left, -6, 6),
+          0)
+          + self.pos
+    end
   end
   if player.life <= 0 then
     return
@@ -882,15 +910,21 @@ function walker:update(
       movement_min,
       movement_max)
 
-  if self.vel:mag() > 0 then
+  if self.hitstun_cooldown > 0 then
+    if self.anim != self.hitstun_anim then
+      self.hitstun_anim:reset()
+    end
+    self.anim = self.hitstun_anim
+  elseif self.vel:mag() > 0 then
     if self.anim != self.walk_anim
     then
       self.walk_anim:reset()
     end
     self.anim = self.walk_anim
-  else
+  elseif self.anim == self.walk_anim then
     self.anim = self.stand_anim
   end
+  self.anim:update()
 end
 
 function walker:draw()
@@ -907,7 +941,8 @@ function walker:draw()
     self.pos, self.left)
 
   -- overlay dragged sword
-  if not self.bullet then
+  if not self.bullet and
+      self.anim != self.spawn_anim then
 		  spr(70,
 		    self.pos.x,
 		    self.pos.y,
@@ -939,7 +974,7 @@ function imp:_init(pos, left)
   self.attack_pos = nil
   self.throw_cooldown = 0
   self.anim =
-    anim(74,75,true,5)
+    anim(74,75,true,8)
   self.windup_anim =
     anim_chain {
       anim_single(
@@ -1101,11 +1136,8 @@ function seeker:_init(pos)
   -- the first elt is the
   -- current position
   self.tail = {}
-  for i=self:tail_end_idx(),1,-1
-  do
-    add(self.tail,
-        vec(self.pos.x,
-            self.pos.y))
+  for i=1,self:tail_end_idx() do
+    add(self.tail, self.pos)
   end
 end
 
@@ -1140,6 +1172,25 @@ function seeker:seek(
           }))
 end
 
+function seeker:damage(amount)
+  if (self.life <= 0) return
+  self.life -= 1
+  if (self.life > 0) return
+  
+  local end_idx =
+    self:tail_end_idx()
+  for i=end_idx,1,-self.separation do
+    local pos = self.tail[i]
+    local vel = 
+      self.tail[i-1]
+        - self.tail[i]
+ 	  local idx = flr(i / self.separation)
+ 	  seeker_corpse(idx, pos, vel)
+  end
+  seeker_corpse(0, self.pos, self.vel)
+end
+  
+
 function seeker:update(
     player, bullets)
   self.invuln_cooldown = max(0,
@@ -1172,52 +1223,41 @@ function seeker:update(
 end
 
 function seeker:draw()
+  palt(0, false)
+  palt(14, true)
+
   local end_idx =
       self:tail_end_idx()
-  for i=end_idx,1,-1
+  for i=end_idx,1,-self.separation
   do
     local sprid = 27
     local flip_x = false
     local flip_y = false
     
-    local pos = vec(
-        self.tail[i])
+    local pos = self.tail[i]
     
     if i == end_idx
     then
-      local last_tail =
-          self.tail[end_idx]
-      local second_last_tail =
-          self.tail[end_idx-1]
-      if last_tail.x < second_last_tail.x
-      then
-        flip_x = true
-      else
-      end
-
-      if last_tail.y > second_last_tail.y
-      then
-        flip_y = true
-      end
+      local v = self.tail[i - 1] - self.tail[i]
+      if (v.x < 0) flip_x = true
+      if (v.y < 0) flip_y = true
       sprid = 30
-    elseif i > 1
-    then
-      sprid = 29
-    elseif self.hitstun_cooldown > 0
-    then
-      sprid = 28
     else
-      sprid = 27
+      sprid = 29
     end
 
-    if i == 1 or 
-       divby(self.separation, i)
-    then    
-	     spr(sprid, pos.x, pos.y,
-	         1, 1,
-	         flip_x, flip_y)
-    end
+    spr(sprid, pos.x, pos.y,
+	       1, 1, flip_x, flip_y)
   end
+  
+  spr(
+    ternary(
+      self.hitstun_cooldown > 0,
+      28, 27),
+    self.pos.x,
+    self.pos.y)
+
+  palt()
 end
 
 -- spikes
@@ -1403,8 +1443,8 @@ end
 function player:_init(pos)
   self.pos = vec(pos)
   self.vel = vec()
-  self.life = 6
   self.max_life = 6
+  self.life = self.max_life
   self.invuln_cooldown = 100
   self.left = false
   
@@ -1470,8 +1510,8 @@ function player:swing(bullets)
   add(bullets,
       bullet(
         anim_chain {
-          anim(64, 65, false, 4),
-          anim(66, 66, false, 8),
+          anim(9,10,false,4),
+          anim_single(11,8),
         },
         bullet_pos,
         vec(),
@@ -1526,12 +1566,23 @@ function player:update(
     if self.anim != self.walk_anim
     then
       self.walk_anim:reset()
+      self.walk_anim:reset()
     end
     self.anim = self.walk_anim
   else
     self.anim = self.stand_anim
   end
   self.anim:update()
+end
+
+function player:damage(amount)
+  if (self.life <= 0) return
+  self.life = max(0, self.life - amount)
+  if (self.life > 0) return
+  player_corpse(
+    self.pos, self.left,
+    self.hair_color,
+    self.skin_color)
 end
 
 function player:draw()
@@ -1827,7 +1878,22 @@ end
 
 function tile_gen:draw()
   local x = self.cam.pos.x
-  rectfill(x,0,x+127,4*8-1,9)
+
+  -- styx
+  rectfill(x,0,x+127,4*8-1,1)
+  palt(14,true)
+  palt(0, false)
+  for i=flr((x)/74)*74-flr(time()*10)%75-37,x+128,74 do
+    spr(59,i,5,2,1)
+    spr(59,i+12,5,2,1)
+  end
+  for i=flr((x)/74)*74-flr(time()*10)%75,x+128,74 do
+    spr(59,i,17,2,1)
+    spr(59,i+12,17,2,1)
+  end
+  palt()
+  
+  -- floor
   rectfill(x,4*8,x+127,12*8-1,13)
   for i =
     flr(x / self.s_width) - 1,
@@ -1844,21 +1910,29 @@ corpse = class.build()
 
 --[[subtracted from vel
 each frame]]
-corpse.friction = 0.125
+corpse.friction = 0.0625
 
 function corpse:_init(
-    anim, pos, vel, flip_x)
+    anim, pos, vel, flip_x,
+    fric_delay)
   self.anim = anim
   self.pos = pos
   self.vel = vel
   self.flip_x = flip_x
+  self.fric_delay =
+      fric_delay or 0
   
   -- corpses never disappear
   self.life = 1
 end
 
 function corpse:update()
+  self.anim:update()
   self.pos = self.pos + self.vel
+  if self.fric_delay > 0 then
+    self.fric_delay -= 1
+    return
+  end
   if self.vel:mag() < corpse.friction then
     self.vel = vec()
   else
@@ -1867,7 +1941,6 @@ function corpse:update()
 	       self.vel:normalized()
 	       * corpse.friction)
 	 end
-  self.anim:update()
 end
 
 function corpse:draw()
@@ -1879,7 +1952,23 @@ function corpse:draw()
 end
 
 
--- enemy-specific corpses
+-- enetity corpses
+
+function player_corpse(
+    pos, left, hair, skin)
+  add_particle(
+    corpse(
+      anim(3,4,false,30,nil,{
+        [11] = hair,
+        [12] = skin,
+      }),
+      pos,
+      vec(
+        ternary(left,0.5,-0.5),
+        0),
+      left,
+      30))
+end
 
 function walker_corpse(
     pos, left)
@@ -1897,9 +1986,26 @@ function imp_corpse(pos, left)
 		    anim(76, 78, false, 4),
 		    pos,
 		    vec(
-		      ternary(left, 1, -1),
+		      ternary(left,0.5,-0.5),
 		      0),
 		    left))
+end
+
+function seeker_corpse(
+    idx, pos, vel)
+  local fric_delay = (idx + 1) * 4
+  if (in_range(idx, 1, 3)) idx = 1
+  if (idx > 3) idx -= 2
+  add_particle(
+    corpse(
+      anim_chain {
+        anim_single(28 + idx, fric_delay),
+        anim_single(43 + idx, 4),
+      },
+      pos,
+      vel,
+      vel.x < 0,
+      fric_delay))
 end
 -->8
 -- camera
@@ -2218,7 +2324,7 @@ function _init()
 		-- buttons, skip it
 		state.skip_intro_presses = 0
 		
-  start_stage(3, state)
+  start_stage(1, state)
 		
   -- uncomment this to
   -- skip long intro
@@ -2574,132 +2680,116 @@ function _draw()
   draw_ui()
 end
 __gfx__
-00000000eeebbeeeeeebbeeeeeeeeeeeeeeeeeee0000000000000000080008000000000000000000000000000000000000000000000000000000000000000000
-00000000eebccceeeebccceeeeeeeeeeeeeeeeee0000000000000000888088800000000000000000000000000000000000000000000000000000000000088000
-00700700eebccceeeebccceeeeeeeeeeeeeeeeee0000000000000000888888800000000000000000000000000000000000000000000000000000999900088800
-00077000eeecceeeeeecceeeeeeeeeeeeeeeeeee0000000000000000888888800066600000000000000000000000000000000000000000000000900088888880
-00077000eecccceeeecccceeeeeeeeeeeeeeeeee0000000000000000288888200000000000000000000000000000000000000000000000009999999988888888
-00700700eecccceeeecccceeeeeeeeeeeeeeeeee0011110001111110028882000000000000000000000000000000000000000000000000000000900088888880
-00000000eecccceeecccccceeeeeeeeeeeeeeeee0111111011111111002820000000000000000000000000000000000000000000000000000000999900088800
-00000000eeceeceeeeeeeeeeeeeeeeeeeeeeeeee0011110001111110000200000000000000000000000000000000000000000000000000000000000000088000
-0000000000000000000000000000000000000000eeeeeeeeeeeeeeee000000000000000000000000000000000000000000000000000000000000000000000000
-0888888000000000000000000000000000000000eeeeeeeee7eee7ee000000000000000000000000000000000022220000222200000000000000000000000000
-0000000008888880000000000000000000000000eeeeeeeee76ee76e000000000000000000000000000000000288882002222220000220000000222000000000
-0000000000000000088888800000000000000000e00ee00ee00ee00e0000000000000000000000000000000028a66a8222222222002882000002882000000000
-0000000000000000000000000888888000000000eeeeeeeeeeeeeeee0000000000000000000000000000000028a66a8222288222002882000002822000000000
-0000000000000000000000000000000000000000eeeeeeeee7eee7ee000000000000000000000000000000000288882002222220000220000028200000000000
-0000000000000000000000000000000008888880eeeeeeeee76ee76e000000000000000000000000000000000022220000222200000000000022000000000000
-0000000000000000000000000000000000000000e00ee00ee00ee00e000000000000000000000000000000000000000000000000000000000000000000000000
-dddddddddddddddd11111ddd02500000250000002dd2100001100000002000000220000000000000000000000000000000000000000000000000000000000000
-1ddd111111ddd111111111110250000025000000022100001551000002d200002dd2000000000000000000000000000000000000000000000000000000000000
-11111111111d111112dd1111250000000250000005510000055000002ddd20000111000000000000000000000000000000000000000000000000000000000000
-1111122ddd11112dd2dddddd25000000025000000050000025520000011110000000000000000000000000000000000000000000000000000000000000000000
-dddd222ddd11122dd2dddddd02500000250000000000000002200000000000000000000000000000011111000000000000000000000000000000000000000000
-dddd222ddddd222dd2dddddd02500000250000000000000000000000000000000000000011100011111111110000000000000000000000000000000000000000
-dddd222ddddd222dd2dddddd0000000000000000000000000000000000000000000000001111111111ddd1110000000000000000000000000000000000000000
-dddd222ddddd222dd2dddddd000000000000000000000000000000000000000000000000dd11111ddddddddd0000000000000000000000000000000000000000
-dddd222ddddd222dd2ddddddd2dddddddddd222d1000000020000000255552000200200000000000000000000000000000000000000000000000000000000000
-ddd2222ddddd2222d2ddddddd2dddddddddd222d1000000000000000022220002525520000000000000000000000000000000000000000000000000000000000
-ddd222ddddddd222d2ddddddd2dddddddddd222d1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-ddd222ddddddd222d2ddddddd2dddddddddd222d1000000000000000000000000000000000000000000011000000000000000000000000000000000000000000
-ddd222ddddddd222dd2dddddd2dddddddddd222d0000000000000000000000000000000000000000001111000000000000000000000000000000000000000000
-ddd2222ddddd2222dd2dddddd2dddddddddd222d00000000000000000000000000000000111111111111d1110000000000000000000000000000000000000000
-dddd222ddddd222ddd2dddddd2dddddddddd222d000000000000000000000000000000001111111111ddd1110000000000000000000000000000000000000000
-dddd222ddddd222dd2ddddddd2dddddddddd222d00000000000000000000000000000000dddddddddddddddd0000000000000000000000000000000000000000
-00000000000007770000077000077770eee555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2eeeeeeee2f88feefeeeeeeeeeeeeeeeeeeeeeeee2eeee
-00000000000076670000760000777770ee55005eeee555eeeeeeeeeeeee50eeeeeeeeeeeeeeeeeeee222f88fee22800ee880eeeeeeeeeeeeeeeeeeeeeee22eee
-00000000007767770077600000777770ee55005eee55005eeeeeeeeeee500eeeeeeeeeeeeeeeeeee2222800eee22888ef8082eeeefeee222eeeeeeeeeee22eee
-44000000476677774760000044677777e555005eee55005eeeeeeeeeee5000eeee50eeeeeeeeeeee2222888eee2228eee88222eee808222eeeeeeeeeefe222ee
-46700000447777774400000047766777e55555eee555005eeee4eeeeee55555eee5000eeee0005ee222288eeee22288eee82228ee8022228eeeeeeeee80222e8
-00670000007777770000000000677677e55555eee55555eeee764eeee55455eee5555555e550055e22e2888eee2e88eeee2222eeef82228eefeeeeeee808228e
-00067700007777700000000000006767e55555eee55555eee76eeeee557745ee5555455e555545552eee88eeeee8e8eeeee2228eeee82228e802228eef882228
-00000670000777700000000000000677555555ee555555ee76eeeeee776eeeee777774ee777774eeeee8e8eeeeeeeeeeeeee2eeeeeeeeeeeef822228eeeeeeee
+00000000eeebbeeeeeebbeeeeeebbeeeeeeeeeee0000000000000000080008000000000000000000000007770000077000077770000000000000000000000000
+00000000eebccceeeebccceeeebccceeeeeeeeee0000000000000000888088800000000000000000000076670000760000777770000000000000000000088000
+00700700eebccceeeebccceeeebccceeeeeeeeee0000000000000000888888800000000000000000007767770077600000777770000000000000999900088800
+00077000eeecceeeeeecceeeeeecceeeeeeeeeee0000000000000000888888800066600044000000476677774760000044677777000000000000900088888880
+00077000eecccceeeecccceeeecccceeeeeeeeee0000000000000000288888200000000046700000447777774400000047766777000000009999999988888888
+00700700eecccceeeecccceeeecccceeecceeeee0011110001111110028882000000000000670000007777770000000000677677011111000000900088888880
+00000000eecccceeecccccceeecccceebcccccce0111111011111111002820000000000000067700007777700000000000006767111111100000999900088800
+00000000eeceeceeeeeeeeeeeeeececebbbccccc0011110001111110000200000000000000000670000777700000000000000677011111000000000000088000
+0000000000000000000000000000000000000000eeeeeeeeeeeeeeee00000000000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00000000
+0888888000000000000000000000000000000000eeeeeeeee7eee7ee00000000000000000000000000000000ee2222eeee2222eeeeeeeeeee22eeeee00000000
+0000000008888880000000000000000000000000eeeeeeeee76ee76e00000000000000000000000000000000e288882ee222222eeee22eeee2822eee00000000
+0000000000000000088888800000000000000000e00ee00ee00ee00e0000000000000000000000000000000028a66a8222222222ee2882eeee2882ee00000000
+0000000000000000000000000888888000000000eeeeeeeeeeeeeeee0000000000000000000000000000000028a66a8222866822ee2882eeee2882ee00000000
+0000000000000000000000000000000000000000eeeeeeeee7eee7ee00000000000000000000000000000000e288882ee222222eeee22eeeeee222ee00000000
+0000000000000000000000000000000008888880eeeeeeeee76ee76e00000000000000000000000000000000ee2222eeee2222eeeeeeeeeeeeeeeeee00000000
+0000000000000000000000000000000000000000e00ee00ee00ee00e00000000000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00000000
+dddddddddddddddd11111ddd02500000250000002dd210000110000000200000022000000000000000000000eeeeeeeeeeeeeeeeeeeeeeee0000000000000000
+1ddd111111ddd111111111110250000025000000022100001551000002d200002dd200000000000000000000eeeeeeeeeeeeeeeeeeeeeeee0000000000000000
+11111111111d111112dd1111250000000250000005510000055000002ddd2000011100000000000000000000eeeeeeeeeeeeeeeeeeeeeeee0000000000000000
+1111122ddd11112dd2dddddd2500000002500000005000002552000001111000000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeee0000000000000000
+dddd222ddd11122dd2dddddd0250000025000000000000000220000000000000000000000000000001111100e222222eeeeeeeeeeeeeeeee0000000000000000
+dddd222ddddd222dd2dddddd025000002500000000000000000000000000000000000000111000111111111122222222eeeeeeeeeeeeeeee0000000000000000
+dddd222ddddd222dd2dddddd0000000000000000000000000000000000000000000000001111111111ddd11122c55522eee22eeeeee22eee0000000000000000
+dddd222ddddd222dd2dddddd000000000000000000000000000000000000000000000000dd11111ddddddddde2c2222eee2552eee22552ee0000000000000000
+dddd222ddddd222dd2ddddddd2dddddddddd222d100000002000000025555200020020000000000000000000eeeeeeeeeeeeeeee000000000000000000000000
+ddd2222ddddd2222d2ddddddd2dddddddddd222d100000000000000002222000252552000000000000000000eeeeeeeeeeeeeeee000000000000000000000000
+ddd222ddddddd222d2ddddddd2dddddddddd222d100000000000000000000000000000000000000000000000eeeeee0eeeeeeeee000000000000000000000000
+ddd222ddddddd222d2ddddddd2dddddddddd222d100000000000000000000000000000000000000000001100eeeee0e0eeeeeeee000000000000000000000000
+ddd222ddddddd222dd2dddddd2dddddddddd222d000000000000000000000000000000000000000000111100eee00eee00eeeeee000000000000000000000000
+ddd2222ddddd2222dd2dddddd2dddddddddd222d00000000000000000000000000000000111111111111d111000eeeeeee000eee000000000000000000000000
+dddd222ddddd222ddd2dddddd2dddddddddd222d000000000000000000000000000000001111111111ddd111eeeeeeeeeeeeeeee000000000000000000000000
+dddd222ddddd222dd2ddddddd2dddddddddd222d00000000000000000000000000000000ddddddddddddddddeeeeeeeeeeeeeeee000000000000000000000000
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee555eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2eeeeeeee2f88feefeeeeeeeeeeeeeeeeeeeeeeee2eeee
+eeeeeeeeeeeeeeeeeeeeeeeeeee555eeee55005eeee555eeeeeeeeeeeee50eeeeeeeeeeeeeeeeeeee222f88fee22800ee880eeeeeeeeeeeeeeeeeeeeeee22eee
+eeeeeeeeeeeeeeeeee55555eee55555eee55005eee55005eeeeeeeeeee500eeeeeeeeeeeeeeeeeee2222800eee22888ef8082eeeefeee222eeeeeeeeeee22eee
+eeeeeeeeeeeeeeeeee55555eee55005ee555005eee55005eeeeeeeeeee5000eeee50eeeeeeeeeeee2222888eee2228eee88222eee808222eeeeeeeeeefe222ee
+eeeeeeeeeeee55eee555005eee55005ee55555eee555005eeee4eeeeee55555eee5000eeee0005ee222288eeee22288eee82228ee8022228eeeeeeeee80222e8
+eeeeeeeeeee5555ee55555eee555555ee55555eee55555eeee764eeee55455eee5555555e550055e22e2888eee2e88eeee2222eeef82228eefeeeeeee808228e
+eee555eee5555555e555555ee555555ee55555eee55555eee76eeeee557745ee5555455e555545552eee88eeeee8e8eeeee2228eeee82228e802228eef882228
+e555555e555500055555555e5555555e555555ee555555ee76eeeeee776eeeee777774ee777774eeeee8e8eeeeeeeeeeeeee2eeeeeeeeeeeef822228eeeeeeee
 __label__
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
-66666666666666666666666666116666666666666666666666666666666666666666666666666666666666666611666666666666666666666666666666666666
-11116666666666666666666611116666666666666666666666666666666666666666666666666661111166661111666666666666666666611111666666666661
-11111111166611111111111111d111111666111116661111111111111666111116661111166611111111111111d1111116661111111111111111111116661111
-ddd111111111111111111111ddd11111111111111111111111111111111111111111111111111111ddd11111ddd111111111111111111111ddd1111111111111
-dddddddd11111ddddddddddddddddddd11111ddd11111ddddddddddd11111ddd11111ddd11111ddddddddddddddddddd11111ddddddddddddddddddd11111ddd
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111118811111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111118881111111111
+11111111111011111111111111111111111111111111111111111111111111111111111110111111111110111111111111111111111111118888888111111111
+01111111110101111111111111111111111111111111111111111111111111111111111101011111111101011111111111111111111111118888888811111111
+10011111001110011111111111111111111111111111111111111111111111111111110011100111110011100111111111111111111111118888888111111111
+11100000111111100011111111111111111111111111111111111111111111111110001111111000001111111000111111111111111111111118881111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111118811111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111101111111111101111111111111111111111111111111111111111111111111111111111111011111111111011111
+11111111111111111111111111111111111010111111111010111111111111111111111111111111111111111111111111111111111110101111111110101111
+11111111111111111111111111111111100111001111100111001111111111111111111111111111111111111111111111111111111001110011111001110011
+11111111111111111111111111111100011111110000011111110001111111111111111111111111111111111111111111111111000111111100000111111100
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+1111111111111111111111111111d111111111111111111111111111111111111111111111111111111111111111d11111111111111111111111111111111111
+11ddd111111111111111111111ddd11111111111111111111111111111111111111111111111111111ddd11111ddd111111111111111111111ddd11111111111
+dddddddddd11111ddddddddddddddddddd11111ddd11111ddddddddddd11111ddd11111ddd11111ddddddddddddddddddd11111ddddddddddddddddddd11111d
+dddddddddddddddddddddddddd255552dddddddddddddddddddddddddddddddddddddddddddddddddddddd2ddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddd2222dddddddddddddddddddddddddddddddddddddddddddddddddddddd2d2dddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddd255552dddddddddddddddddddddddddddddddddddddddddd2ddd2ddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddd2222dddddddddddddddddddddddddddddddddddddddddddd1111ddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd255552ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd2222dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd2dd2ddddddddddddddddddddddddddddddddddddddd
-ddddddddddd2f88fdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd252552dddddddddddddddddddddddddddddddddddddd
-dddddddddd22800ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddd22888ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddd2228dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddd22288ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddd2d88ddddddddddddddddddddddddddddddddddddddddddddddddd22ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddd8d8dddddddddddddddddddddddddddddddddddddddddddddddd2dd2dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddd1111ddddddddddddddddddddddddddddddddddddddddddddddddd111dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddd111111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddd1111dddddd255552dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddd2222ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd555dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd55005ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddddddddddd555dddddddddddddddddddddd55005ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddddddddddddddddddddddddddddd55005dddddddddddddddddddd554005ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddddddddddddddddddddddddddddd55005dddddddddddddddddddd57645dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddddddddd554005dddddddddddddddddddd76555dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddddddddd57645dddddddddddddddddddd765555dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddddddddd76555ddddddddddddddddddd11111111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddddddddddddddddddddddddddd765555dddddddddddddddddddd111111dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddddddddddddddddddddddd2dd11111111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddd2d2dd111111dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddddddddddddddddddddd2ddd2ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddd1111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddaadddddddddddd
-ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd666addddddddddd
-ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd666addddddddddd
-dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd66dddddddddddd
-ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd6666ddddddddddd
-ddddddddddddddddddddddddddddddddd555ddddddddddddd2ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd6666ddddddddddd
-dddddddddddddddddddddddddddddddd55005ddddddddddd2d2dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd6666ddddddddddd
-dddddddddddddddddddddddddddddddd55005dddddddddd2ddd2dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd161161dddddddddd
-ddddddddddddddddddddddddddddddd555005ddddddddddd1111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd1111ddddddddddd
-ddddddddddddddddddddddddddddddd55455dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddddd57645dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddddd76555dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddddddddddddddddddddddd765555dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddd11111111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddddddddddddddddddddddd111111dddddddddddddddddd555ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddddddddddddddddddddddddddd55005dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddddddddddddddddddddddddddd55005dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddddddddddddddddddddddddddddddddddddddddddddddddd554005dddddddddddddddddddddddddddddd255552dddddddddddddddddddddddddddddddddd
-dddddddddddddddddddddddddddddddddddddddddddddddddddd57645dddddddddddddddddddddddddddddddd2222ddddddddddddddddddddddddddddddddddd
-dddddddddddddddddddddddddddddddddddddddddddddddddddd76555dddddddddddddddddddddddddddddddddddddddddddddddd255552ddddddddddddddddd
-ddddddddddddddddddddddddddddddddddddddddddddddddddd765555ddddddddddddddddddddddddddddddddddddddddddddddddd2222dddddddddddddddddd
-dddddddddddddddddddddddddddddddddddddddddddddddddd11111111dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddddddddddddddddddddddddd111111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd255552d
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd2222dd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd66ddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd6666dddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd6666dddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd66ddddddddddddddddddddddddd22dddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd6666ddddddddddddddddddddddd2dd2ddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd6666dddddddddddddddddddddddd111ddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd6666dddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd161161ddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd1111dddddddddddddddddddddddddddddddddddddddddddd
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
@@ -2711,34 +2801,50 @@ dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
-dddddd11111ddddddddddddddddddddddddddd11111ddddddddddddddddddddddddddd11111ddd11111ddddddddddddddddddd11111ddddddddddd11111ddddd
-ddd1111111111111ddd1111ddd11111ddd1111111111111ddd111111ddd1111ddd1111111111111111111111ddd1111ddd11111111111111ddd111111111111d
-1d111112dd1111111d1111111111111111111112dd111111111111111d11111111111112dd111112dd1111111d11111111111112dd1111111d111112dd111111
-11112dd2dddddddd11112d1111122d1111122dd2dddddd1111122ddd11112d1111122dd2ddddddd2dddddddd11112d1111122dd2dddddddd11112dd2dddddd11
-11122dd2dddddddd11122ddddd222ddddd222dd2dddddddddd222ddd11122ddddd222dd2ddddddd2dddddddd11122ddddd222dd2dddddddd11122dd2dddddddd
-dd222dd2dddddddddd222ddddd222ddddd222dd2dddddddddd222ddddd222ddddd222dd2ddddddd2dddddddddd222ddddd222dd2dddddddddd222dd2dddddddd
-dd222dd2dddddddddd222ddddd222ddddd222dd2dddddddddd222ddddd222ddddd222dd2ddddddd2dddddddddd222ddddd222dd2dddddddddd222dd2dddddddd
-dd222dd2dddddddddd222ddddd222ddddd222dd2dddddddddd222ddddd222ddddd222dd2ddddddd2dddddddddd222ddddd222dd2dddddddddd222dd2dddddddd
-dd222dd2dddddddddd222ddddd222ddddd222dd2dddddddddd222ddddd222ddddd222dd2ddddddd2dddddddddd222ddddd222dd2dddddddddd222dd2dddddddd
-d2222dd2dddddddddd2222dddd222dddd2222dd2ddddddddd2222ddddd222ddddd2222d2ddddddd2ddddddddd2222ddddd222dd2dddddddddd2222d2dddddddd
-d222ddd2ddddddddddd222dddd222dddd222ddd2ddddddddd222dddddd222dddddd222d2ddddddd2ddddddddd222dddddd222dd2ddddddddddd222d2dddddddd
-d222ddd2ddddddddddd222dddd222dddd222ddd2ddddddddd222dddddd222dddddd222d2ddddddd2ddddddddd222dddddd222dd2ddddddddddd222d2dddddddd
-d222ddd2ddddddddddd222dddd222dddd222dddd2dddddddd222dddddd222dddddd222d2dddddddd2dddddddd222dddddd222ddd2dddddddddd222dd2ddddddd
-d2222dd2dddddddddd2222dddd222dddd2222ddd2dddddddd2222ddddd222ddddd2222d2dddddddd2dddddddd2222ddddd222ddd2ddddddddd2222dd2ddddddd
-dd222dd2dddddddddd222ddddd222ddddd222ddd2ddddddddd222ddddd222ddddd222dd2dddddddd2ddddddddd222ddddd222ddd2ddddddddd222ddd2ddddddd
-dd222dd2dddddddddd222ddddd222ddddd222dd2dddddddddd222ddddd222ddddd222dd2ddddddd2dddddddddd222ddddd222dd2dddddddddd222dd2dddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd2dddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddd11111ddddddddddddddddddddddddddd11111ddddddddddddddddddddddddddd11111ddd11111ddddddddddddddddddd11111ddddddddddd11111ddd
+11ddd1111111111111ddd1111ddd11111ddd1111111111111ddd111111ddd1111ddd1111111111111111111111ddd1111ddd11111111111111ddd11111111111
+111d111112dd1111111d1111111111111111111112dd111111111111111d11111111111112dd111112dd1111111d11111111111112dd1111111d111112dd1111
+dd11112dd2dddddddd11112d1111122d1111122dd2dddddd1111122ddd11112d1111122dd2ddddddd2dddddddd11112d1111122dd2dddddddd11112dd2dddddd
+dd11122dd2dddddddd11122ddddd222ddddd222dd2dddddddddd222ddd11122ddddd222dd2ddddddd2dddddddd11122ddddd222dd2dddddddd11122dd2dddddd
+dddd222dd2dddddddddd222ddddd222ddddd222dd2dddddddddd222ddddd222ddddd222dd2ddddddd2dddddddddd222ddddd222dd2dddddddddd222dd2dddddd
+dddd222dd2dddddddddd222ddddd222ddddd222dd2dddddddddd222ddddd222ddddd222dd2ddddddd2dddddddddd222ddddd222dd2dddddddddd222dd2dddddd
+dddd222dd2dddddddddd222ddddd222ddddd222dd2dddddddddd222ddddd222ddddd222dd2ddddddd2dddddddddd222ddddd222dd2dddddddddd222dd2dddddd
+dddd222dd2dddddddddd222ddddd222ddddd222dd2dddddddddd222ddddd222ddddd222dd2ddddddd2dddddddddd222ddddd222dd2dddddddddd222dd2dddddd
+ddd2222dd2dddddddddd2222dddd222dddd2222dd2ddddddddd2222ddddd222ddddd2222d2ddddddd2ddddddddd2222ddddd222dd2dddddddddd2222d2dddddd
+ddd222ddd2ddddddddddd222dddd222dddd222ddd2ddddddddd222dddddd222dddddd222d2ddddddd2ddddddddd222dddddd222dd2ddddddddddd222d2dddddd
+ddd222ddd2ddddddddddd222dddd222dddd222ddd2ddddddddd222dddddd222dddddd222d2ddddddd2ddddddddd222dddddd222dd2ddddddddddd222d2dddddd
+ddd222ddd2ddddddddddd222dddd222dddd222dddd2dddddddd222dddddd222dddddd222d2dddddddd2dddddddd222dddddd222ddd2dddddddddd222dd2ddddd
+ddd2222dd2dddddddddd2222dddd222dddd2222ddd2dddddddd2222ddddd222ddddd2222d2dddddddd2dddddddd2222ddddd222ddd2ddddddddd2222dd2ddddd
+dddd222dd2dddddddddd222ddddd222ddddd222ddd2ddddddddd222ddddd222ddddd222dd2dddddddd2ddddddddd222ddddd222ddd2ddddddddd222ddd2ddddd
+dddd222dd2dddddddddd222ddddd222ddddd222dd2dddddddddd222ddddd222ddddd222dd2ddddddd2dddddddddd222ddddd222dd2dddddddddd222dd2dddddd
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000008000800080008000800080008000800080008000800080000000000000000000000000000000000000000000000000000000000000000000000
+00000000000088808880888088808880888088808880888088808880888000000000000000000000000000000000000000000000000000000000000000000000
+00000000000088888880888888808888888088888880888888808888888000000000000000000000000000000000000000000000000000000000000000000000
+00000000000088888880888888808888888088888880888888808888888000000000000000000000000000000000000000000000000000000000000000000000
+00000000000028888820288888202888882028888820288888202888882000000000000000000000000000000000000000000000000000000000000000000000
+00000000000002888200028882000288820002888200028882000288820000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000282000002820000028200000282000002820000028200000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000020000000200000002000000020000000200000002000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
