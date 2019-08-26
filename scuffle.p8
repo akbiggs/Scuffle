@@ -263,8 +263,6 @@ function hbox:_init(pos, size)
   self.size = vec(size)
 end
 
--- get whether vector |v| is
--- inside the hitbox
 function hbox:contains(v)
   return in_range(
       v.x,
@@ -312,8 +310,6 @@ function anim:_init(
     start_sprid, end_sprid,
     is_loop, duration, offset,
     pal_tbl, palt_tbl)
-  -- duration is how many ticks
-  -- each frame should last
   duration = duration or 1
  
   self.start_sprid = start_sprid
@@ -327,10 +323,6 @@ function anim:_init(
   self:reset()
 end
 
--- a single-frame animation
--- useful for passing sprites
--- to functions that expect
--- animations
 function anim_single(
     sprid, ...)
   return anim(
@@ -402,9 +394,6 @@ function anim:draw(pos, flip_x)
   if (self.palt_tbl) palt()
 end
 
--- creates an animation
--- that chains together
--- several animation instances.
 anim_chain = class.build()
 
 function anim_chain:_init(
@@ -452,16 +441,9 @@ function anim_chain:update()
     self:anim():reset()
   elseif self.is_loop
   then
-    -- we're done the last anim
-    -- in a loop, so restart
-    -- loop
     self.current = 1
-
     self:anim():reset()
   else
-    -- we're done the last anim
-    -- and we're not looping,
-    -- so this chain is done
     self.done = true
   end
 end
@@ -482,21 +464,13 @@ local prev_btn = {
   false,
 }
 
--- is a button just pressed?
--- relies on prev_btn being
--- updated at the end of the
--- game loop
--- different from btnp because
--- it doesn't use keyboard-style
--- repeating 
+-- like btnp, but without keyboard repeating
 function btnjp(i)
-  -- todo: add support for more
-  --       than one player
+  -- todo: add support for more than one player
   return btn(i) and
          not prev_btn[i+1]
 end
 
--- update state used by btnjp
 -- call this at the end of
 -- every update
 function update_prev_btn()
@@ -550,11 +524,9 @@ function bullet:_init(
   -- hitbox size
   self.size = props.size or vec(
       8, 8)
-  -- how many ticks before the
-  -- bullet becomes deadly?
+  -- tics before becomes deadly
   self.deadly_start = props.deadly_start or 30000
-  -- how many ticks before the
-  -- bullet stops being deadly?
+  -- ticks before stops being deadly
 	  self.deadly_end = props.deadly_end or -30000
 
   self.anim = anim
@@ -667,11 +639,6 @@ function update_bullets(state)
         if p.life <= 0
         then
           -- todo: death sfx
-
-          -- timer so the stage
-          -- doesn't restart
-          -- if the player spams
-          -- x when dying
           state.death_timer =
               200
           music(-1)
@@ -717,10 +684,10 @@ function health:update(player)
   
   local hb = hbox(
       self.pos,
-      --[[size=]]vec(8, 8))
+      vec(8, 8))
   local phb = hbox(
       player.pos,
-      --[[size=]]vec(8, 8))
+      vec(8, 8))
   
   if self.life > 0 and
      hb:intersects(phb)
@@ -787,9 +754,6 @@ local movement_min = vec(
 local movement_max = vec(
     30000, 12 * 8 - 8)
 
--- walks towards the player
--- and beats the living ****
--- out of them
 local walker = class.build()
 
 function walker:_init(pos, left)
@@ -1087,8 +1051,6 @@ end
 
 function imp:align_with_player(
     player)
-  -- move down or up towards
-	 -- the player
 		local speed = 0.3
 		self.pos =
 		    self.pos:push_towards(
@@ -1160,10 +1122,6 @@ function imp:draw()
   end
 end
 
--- slime
-
--- todo!!!!
-
 -- seeker
 
 local seeker = class.build()
@@ -1180,11 +1138,6 @@ function seeker:_init(pos)
   -- not used but necessary
   self.hitstun_cooldown = 0
 
-  -- tail is a list of previous
-  -- positions. the last elt
-  -- is the furthest position,
-  -- the first elt is the
-  -- current position
   self.tail = {}
   for i=1,self:tail_end_idx() do
     add(self.tail, self.pos)
@@ -1207,16 +1160,14 @@ function seeker:seek(
           0.025) 
  
   -- to do collisions with the
-  -- eye, put a bullet in the
-  -- eye for one frame
   add(bullets,
       bullet(
           anim_single(0),
           self.pos,
-          --[[vel=]]vec(),
-          --[[life=]]1,
-          --[[is_enemy=]]true,
-          --[[left=]]false,
+          vec(),
+          1,
+          true,
+          false,
           {
             size=vec(4, 4),
           }))
@@ -1269,8 +1220,6 @@ function seeker:update(
         self.tail[i-1]
   end
   
-  -- put the new position at
-  -- the front of the tail
   if self.vel:mag() > self.speed then
     self.vel = self.vel:normalized() * self.speed
   end
@@ -1317,21 +1266,12 @@ function seeker:draw()
 end
 
 -- spikes
--- a spike is an ememy that
--- fires a bullet in-place with
--- no velocity sporadically
 
 local spike = class.build()
 
--- i use the frame where the
--- spikes are out as the frame
--- to create the bullet
 spike.damaging_sprid = 22
 spike.damaging_time = 60
 
--- offset is a timing offset
--- that you can use to make
--- waves of spikes
 function spike:_init(
     pos, offset)
   offset = offset or 0  
@@ -1341,17 +1281,11 @@ function spike:_init(
     21, 22, true,
     spike.damaging_time,
     nil, nil, {14})
-   
-  -- offset spike timing by
-  -- pushing the animation
-  -- forward
+
   for i=1,offset do
     self.anim:update()
   end
   
-  -- a pile of hacks to make
-  -- the spikes not crash the
-  -- game as enemies
   self.life = 30000
   self.invuln_cooldown = 30000
   self.hitstun_cooldown = 30000
@@ -1367,18 +1301,14 @@ function spike:update(
      self.anim.sprid ==
      spike.damaging_sprid
   then
-    -- create an invisible
-    -- bullet that lasts as long
-    -- as the spikes-out anim
     add(bullets,
         bullet(
-          -- invisible
           anim_single(25),
           self.pos,
           vec(),
           spike.damaging_time,
-          --[[is_enemy=]]true,
-          --[[left=]]false))
+          true,
+          false))
   end
 end
 
@@ -1405,9 +1335,6 @@ function wave:_init(
       props.lock_cam != nil,
       props.lock_cam, true)
   
-  -- add startx to enemy pos
-  -- to make calculations
-  -- easier
   for e in all(self.enemies)
   do
     e.pos.x += self.startx
@@ -1441,10 +1368,7 @@ function wave:update(
        #self.enemies == 0 and
        self.spawn_health
     then
-      add(pickups,
-          health(
-              vec(self.startx + 100,
-                  60)))
+      add(pickups,health(vec(self.startx + 100, 60)))
     end
   end
 end
@@ -2439,10 +2363,6 @@ function get_player_start_pos(
   return vec(10, 60)
 end
 
--- common initialization
--- logic between starting a
--- stage for the first time
--- and restarting
 function init_stage(state)
   state.stage_end =
       get_stage_end(
@@ -2464,10 +2384,6 @@ function init_stage(state)
 
   if state.stage == 3
   then
-    -- add soul manually to
-    -- enemies so we can walk
-    -- up to it (it's
-    -- convoluted)
     state.soul = soul(
         vec(300, 60),
         state)
@@ -2489,13 +2405,10 @@ function add_particle(p)
   add(state.particles, p)
 end
 
--- call this the first time
--- you enter a stage
 function start_stage(
     stage, state)
   local song = get_music(
-      stage,
-      --[[is_restart=]]false)
+      stage, false)
   music(song)
 
   state.stage = stage
@@ -2504,10 +2417,6 @@ function start_stage(
       get_intro_life(stage)
   state.stage_done = false
   
-  -- stage 1 has a special
-  -- musical intro before
-  -- the prompt to move shows
-  -- up
   if stage == 1
   then
   		state.music_intro = true
@@ -2524,13 +2433,9 @@ function start_stage(
     coin(vec(60, 60), vec(-1, -1)))
 end
 
--- call this instead of
--- start_stage when restarting
--- a stage
 function restart_stage(state)
   local song = get_music(
-      state.stage,
-      --[[is_restart]]true)
+      state.stage, true)
   music(song)
   state.skip_intro = true
   
@@ -2543,21 +2448,11 @@ function next_stage(state)
 end
 
 function _init()
-  -- the music intro is long,
-		-- so if the user is spamming
-		-- buttons, skip it
 		state.skip_intro_presses = 0
 		
   start_stage(1, state)
-		
-  -- uncomment this to
-  -- skip long intro
-  --restart_stage(state)
 end
 
--- a bunch of junk to align
--- the start of the game with
--- music
 function update_music_intro(
     state)
   if btnjp(❎) or btnjp(🅾️)
@@ -2580,9 +2475,6 @@ function update_music_intro(
       not state.music_intro)
       or state.skip_intro)
   then
-    -- prompt the user to move
-    -- forward when the music
-    -- pauses
     state.intro_life = 0
     state.intro_done = true
     state.prompt_move_dist = 40
@@ -2664,15 +2556,9 @@ function _update60()
     
     state.camera:update()
 
-    -- don't let the camera
-    -- go back to the left
     state.camera.min.x =
         state.camera.pos.x
     
-    -- stop prompting the player
-    -- to move when the camera
-    -- moves enough (they get
-    -- the point)
     local delta =
         state.camera.pos.x -
         old_campos.x
@@ -2817,8 +2703,6 @@ function draw_cutscene_dialog()
 end
 
 function draw_ui()
-  -- prompt the player to
-  -- advance
   if not any_wave_locking_cam(
       state.waves) and
      (state.soul == nil or
@@ -2838,8 +2722,6 @@ function draw_ui()
   end
 end
 
--- gets all entities that can
--- be sorted by y-pos to draw
 function all_entities(state)
   local ents = {}
   if state.player.life > 0
@@ -2902,8 +2784,6 @@ function _draw()
     pi:draw()
   end
   
-  -- ui is screen-space, so
-  -- reset camera before drawing
   camera()
   draw_ui()
 end
