@@ -2171,7 +2171,6 @@ end
 
 function get_stage_1_waves()
   return {
-    wave(0, {spike(vec(60, 60))}),
     wave(60, {
       walker(vec(110, 30), true),
     		walker(vec(10, 60)),
