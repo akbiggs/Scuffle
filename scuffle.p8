@@ -303,7 +303,7 @@ anim = class.build()
 function anim:_init(
     start_sprid, end_sprid,
     is_loop, duration, offset,
-    pal_tbl)
+    pal_tbl, palt_tbl)
   -- duration is how many ticks
   -- each frame should last
   duration = duration or 1
@@ -314,6 +314,7 @@ function anim:_init(
   self.duration = duration
   self.offset = offset or vec()
   self.pal_tbl = pal_tbl
+  self.palt_tbl = palt_tbl
 
   self:reset()
 end
@@ -322,12 +323,12 @@ end
 -- useful for passing sprites
 -- to functions that expect
 -- animations
-function anim_single(sprid,
-    duration, offset)
+function anim_single(
+    sprid, ...)
   return anim(
       sprid, sprid,
       --[[is_loop=]]false,
-      duration, offset)
+      ...)
 end
 
 function anim:reset()
@@ -368,6 +369,12 @@ function anim:update()
 end
 
 function anim:draw(pos, flip_x)
+  if self.palt_tbl then
+    palt(0, false)
+    for c in all(self.palt_tbl) do
+      palt(c, true)
+    end
+  end
   if self.pal_tbl then
     for i = 0,15 do
       if self.pal_tbl[i] then
@@ -384,6 +391,7 @@ function anim:draw(pos, flip_x)
     1, 1,
     flip_x)
   if (self.pal_tbl) pal()
+  if (self.palt_tbl) palt()
 end
 
 -- creates an animation
@@ -1286,22 +1294,18 @@ spike.damaging_time = 60
 -- waves of spikes
 function spike:_init(
     pos, offset)
-  if offset == nil
-  then
-    offset = 0
-  end
-  
+  offset = offset or 0  
   self.pos = pos
 
   self.anim = anim(
     21, 22, true,
-    spike.damaging_time)
+    spike.damaging_time,
+    nil, nil, {14})
    
   -- offset spike timing by
   -- pushing the animation
   -- forward
-  for i=0,offset
-  do
+  for i=1,offset do
     self.anim:update()
   end
   
@@ -1339,11 +1343,7 @@ function spike:update(
 end
 
 function spike:draw()
-  palt(0, false)
-  palt(14, true)
   self.anim:draw(self.pos)
-  palt(14, false)
-  palt(0, true)
 end
 
 -- enemy waves
@@ -1943,6 +1943,7 @@ end
 
 function get_stage_1_waves()
   return {
+    wave(0, {spike(vec(60, 60))}),
     wave(60, {
       walker(vec(110, 30), true),
     		walker(vec(10, 60)),
@@ -1960,13 +1961,14 @@ function get_stage_1_waves()
       walker(vec(20, 40)),
     }, {
       lock_cam = false,
-      spawn_health = true,
     }),
     wave(170, {
       walker(vec(25, 80)),
       walker(vec(35, 40)),
       imp(vec(8, -5),
           --[[left=]]false),
+    }, {
+      spawn_health = true
     }),
     wave(220, {
       imp(vec(12, -30),
@@ -1987,14 +1989,14 @@ function get_stage_2_waves()
     wave(40, {
       imp(vec(10, 135)),
       imp(vec(5, -20)),
-      imp(vec(112, 145)),
+      imp(vec(112, 145), true),
     }),
     wave(70, {
       walker(vec(10, 40)),
       walker(vec(15, 55)),
       walker(vec(8, 75)),
-      walker(vec(112, 48)),
-      walker(vec(120, 65)),
+      walker(vec(112, 48), true),
+      walker(vec(120, 65), true),
     }),
     wave(100, {
       seeker(vec(140, -30)),
@@ -2047,8 +2049,8 @@ function get_stage_2_waves()
       lock_cam=false,
     }),
     wave(280, {
-      imp(vec(  118, -10)),
-      imp(vec(  112, 130)),
+      imp(vec(  118, -10), true),
+      imp(vec(  112, 130), true),
       walker(vec(30, 32)),
       walker(vec(30, 70)),
     }, {
@@ -2071,19 +2073,19 @@ function get_stage_2_waves()
       lock_cam = false,
     }),
     wave(392, {
-      walker(vec(200,  40)),
-      walker(vec(200,  60)),
-      walker(vec(200,  80)),
+      walker(vec(200,  40), true),
+      walker(vec(200,  60), true),
+      walker(vec(200,  80), true),
     }, {
       lock_cam = true,
       spawn_health = true,
     }),
     wave(496, {
-      imp(vec(100, -80)),
-      imp(vec(118, -20)),
-      imp(vec(112, 130)),
-      imp(vec(107, 190)),
-      imp(vec(102, 160)),
+      imp(vec(100, -80), true),
+      imp(vec(118, -20), true),
+      imp(vec(112, 130), true),
+      imp(vec(107, 190), true),
+      imp(vec(102, 160), true),
       imp(vec(50,  142)),
       walker(vec(-20,  30)),
       walker(vec(-54,  80)),
@@ -2233,7 +2235,7 @@ function _init()
 		-- buttons, skip it
 		state.skip_intro_presses = 0
 		
-  start_stage(2, state)
+  start_stage(1, state)
 		
   -- uncomment this to
   -- skip long intro
