@@ -1321,7 +1321,7 @@ function spike:update(
     add(bullets,
         bullet(
           -- invisible
-          anim_single(9),
+          anim_single(25),
           self.pos,
           vec(),
           spike.damaging_time,
@@ -1420,10 +1420,9 @@ end
 local player = class.build()
 player.skin_colors = {
   6
-  --4, 9, 15
 }
 player.hair_colors = {
-  0, 6, 10
+  0, 10
 }
 
 function player:init_anims()
@@ -1720,14 +1719,21 @@ end
 
 local soul = class.build()
 
+soul.powerup_start = 180
+soul.push_end = 270
+
 function soul:_init(pos, state)
   self.pos = vec(pos)
   self.vel = vec()
   -- open the floodgates for
   -- some hacky stuff
   self.state = state
+  self.lock_cam = false
   
-  self.life = 12
+  -- we'll pretend it only
+  -- takes two hits to kill
+  -- this thing
+  self.life = 30000
   self.skin_color =
       rnd_in(player.skin_colors)
   self.hair_color = 
@@ -1741,9 +1747,9 @@ function soul:_init(pos, state)
   
   self.unaware = true
   self.greeting = false
-  self.shouting = false
-  self.powering_up = false
-
+  self.angry = false
+  self.ded = false
+  
   self.greeting_frames = 0
   self.angry_frames = 0
   self.dialog = nil
@@ -1755,6 +1761,7 @@ function soul:react_to_player(
   then
     self.unaware = false
     self.greeting = true
+    self.lock_cam = true
     self.dialog = soul_dialog({
       "hi! have you seen the ferryman?"
     }, {
@@ -1771,13 +1778,19 @@ function soul:greet(player)
     -- becoming hostile, start
     -- the tunez.
     self.confused = false
-    self.shouting = true
+    self.greeting = false
+    self.angry = true
+    self.old_skin =
+        self.skin_color
+    self.old_hair =
+        self.hair_color
     self.dialog = soul_dialog({
       "so you're a monster too.",
       "you won't take my fare!",
     }, {
       start_delay=80,
       end_delay=80,
+      line_delay=60,
       color=8,
     }),
     music(10)
@@ -1791,10 +1804,62 @@ function soul:greet(player)
     self.left = false
   end
   
-  self.greeting_frames += 1
+  self.greeting_frames = min(
+      30000,
+      self.greeting_frames + 1)
 end
 
 function soul:be_angry(player)
+  if self.angry_frames > soul.powerup_start and
+     self.hitstun_cooldown > 0
+  then
+    self.hair_color = self.old_hair
+    self.skin_color = self.old_skin
+    self.anim = anim_single(4)
+    self.angry = false
+    self.ded = true
+    music(16)
+    -- todo: death sfx
+    -- todo: gold drop
+    self.lock_cam = false
+    self.dialog = soul_dialog({
+      "... why...?",
+      "i'll never see them again...",
+    }, {
+      duration=10,
+      start_delay=40,
+      end_delay=100,
+    })
+  end
+
+  -- in some frames between a
+  -- line of dialogue, shove
+  -- the player back.
+  self.angry_frames = min(30000,
+      self.angry_frames + 1)
+  
+  if in_range(
+          self.angry_frames,
+          soul.powerup_start,
+          soul.push_end)
+  then
+    if self.angry_frames ==
+       self.powerup_start
+    then
+      sfx(30)
+    end
+
+    local speed = soul.push_end -
+        self.angry_frames
+    player.pos =
+        player.pos:push_towards(
+            vec(self.pos.x - 80,
+                player.pos.y),
+            vec(0.015, 0) * speed)        
+  end
+end
+
+function soul:play_dead(player)
   -- todo
 end
 
@@ -1814,6 +1879,9 @@ function soul:update(
   elseif self.angry
   then
     self:be_angry(player)
+  elseif self.ded
+  then
+    self:play_dead(player)
   end
   
   if self.dialog != nil
@@ -1844,6 +1912,19 @@ function soul:draw()
         "!",
         text_pos.x, text_pos.y,
         6)
+  end
+  
+  if self.angry and
+     self.angry_frames >= soul.powerup_start
+  then
+    local c1 = ternary(
+        self.angry_frames % 6 < 3,
+        8, 9)
+    local c2 = ternary(
+        self.angry_frames % 6 >= 3,
+        8, 9)
+    self.skin_color = c1
+    self.hair_color = c1
   end
   
   player.draw(self)
@@ -2084,7 +2165,7 @@ function get_stage_end(
   -- todo: stage 2, stage 3
   if stage == 3
   then
-    return 128*2
+    return 128*3
   end
 
   return 128*3 + 16
@@ -2180,11 +2261,7 @@ function get_stage_2_waves()
 end
 
 function get_stage_3_waves()
-  return {
-    wave(0, {
-      soul(vec(100, 60), state),
-    })
-  }
+  return {}
 end
 
 function get_waves(stage)
@@ -2253,6 +2330,20 @@ function init_stage(state)
   state.pickups = {}
   state.death_timer = 0
   state.outro_life = 0
+
+  if state.stage == 3
+  then
+    -- add soul manually to
+    -- enemies so we can walk
+    -- up to it (it's
+    -- convoluted)
+    state.soul = soul(
+        vec(300, 60),
+        state)
+    state.camera.give = -30
+    add(state.enemies,
+        state.soul)
+  end
 
   state.stage_end =
       get_stage_end(
@@ -2328,7 +2419,7 @@ function _init()
 		-- buttons, skip it
 		state.skip_intro_presses = 0
 		
-  start_stage(1, state)
+  start_stage(3, state)
 		
   -- uncomment this to
   -- skip long intro
@@ -2424,6 +2515,8 @@ function _update60()
   local cam_locked =
       any_wave_locking_cam(
           state.waves)
+      or (state.soul != nil and
+          state.soul.lock_cam)
 
   local p = state.player
   if p.life > 0 and
@@ -2599,6 +2692,8 @@ function draw_ui()
   -- advance
   if not any_wave_locking_cam(
       state.waves) and
+     (state.soul == nil or
+      not state.soul.lock_cam) and
      state.prompt_move_dist > 0
   then
   		spr(15,
@@ -2900,7 +2995,7 @@ __sfx__
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+002200000e45311451134511545115455243000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
