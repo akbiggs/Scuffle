@@ -704,16 +704,10 @@ end
 
 function health:draw()
   -- flicker towards end of life
-  local draw =
-      self.life > 200 or
-      (self.life > 100 and
-       self.life % 3 != 0) or
-      (self.life % 2 != 0)
-  if draw
-  then
-		  spr(7, self.pos.x,
-		      self.pos.y)
-  end
+  if (in_range(self.life, 100, 200) and flr(self.life / 8) % 3 == 0) return
+  if (in_range(self.life, 0, 100) and flr(self.life / 4) % 2 == 0) return
+  spr(7, self.pos.x,
+      self.pos.y + nsin(time()))
 end	
 
 -->8
@@ -1846,7 +1840,7 @@ function get_stage_1_waves()
     wave(60, {
       walker(vec(110, 30)),
     		walker(vec(10, 60)),
-    }),
+    }, {spawn_health = true}),
     wave(110, {
       imp(vec(8, -5),
           --[[left=]]false),
