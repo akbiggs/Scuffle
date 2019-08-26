@@ -745,8 +745,8 @@ end
 coin = class.build()
 function coin:_init(pos, vel)
   self.anim = anim_single(23)
-  self.pos = pos
-  self.vel = vel
+  self.pos = vec(pos)
+  self.vel = vec(vel)
   self.life = 1
 end
 
@@ -759,6 +759,7 @@ function coin:update(player)
   end
   if hbox(self.pos, vec(3, 5))
       :intersects(player:hbox()) then
+    if (self.life > 0) sfx(23)
     self.life = 0
   end
 end
@@ -1811,6 +1812,14 @@ function soul:_init(pos, state)
   self.greeting_frames = 0
   self.angry_frames = 0
   self.dialog = nil
+  
+  self.coins = {}
+end
+
+function soul:all_coins_collected()
+  return #self.coins > 0 and
+         self.coins[1].life == 0 and
+         self.coins[2].life == 0
 end
 
 function soul:react_to_player(
@@ -1878,8 +1887,6 @@ function soul:be_angry(player)
     self.ded = true
     music(16)
     -- todo: death sfx
-    -- todo: gold drop
-    self.lock_cam = false
     self.dialog = soul_dialog({
       "... why...?",
       "i'll never see them again...",
@@ -1888,8 +1895,15 @@ function soul:be_angry(player)
       start_delay=40,
       end_delay=100,
     })
-    spawn_coin(self.pos, vec(1.5, 1))
-    spawn_coin(self.pos, vec(1.5, -1))
+    
+    self.coins = {
+      coin(self.pos, vec(1.5, 1)),
+      coin(self.pos, vec(1.5, -1)),
+    }
+    add(self.state.pickups,
+        self.coins[1])
+    add(self.state.pickups,
+        self.coins[2])
   end
 
   -- in some frames between a
@@ -1920,7 +1934,10 @@ function soul:be_angry(player)
 end
 
 function soul:play_dead(player)
-  -- todo
+  if self:all_coins_collected()
+  then
+    self.lock_cam = false
+  end
 end
 
 function soul:update(
@@ -2512,8 +2529,6 @@ function start_stage(
   state.intro_done = false
   
   init_stage(state)
-  add(state.pickups,
-    coin(vec(60, 60), vec(-1, -1)))
 end
 
 -- call this instead of
