@@ -303,7 +303,7 @@ anim = class.build()
 function anim:_init(
     start_sprid, end_sprid,
     is_loop, duration, offset,
-    pal_tbl)
+    pal_tbl, palt_tbl)
   -- duration is how many ticks
   -- each frame should last
   duration = duration or 1
@@ -314,6 +314,7 @@ function anim:_init(
   self.duration = duration
   self.offset = offset or vec()
   self.pal_tbl = pal_tbl
+  self.palt_tbl = palt_tbl
 
   self:reset()
 end
@@ -322,12 +323,12 @@ end
 -- useful for passing sprites
 -- to functions that expect
 -- animations
-function anim_single(sprid,
-    duration, offset)
+function anim_single(
+    sprid, ...)
   return anim(
       sprid, sprid,
       --[[is_loop=]]false,
-      duration, offset)
+      ...)
 end
 
 function anim:reset()
@@ -368,6 +369,12 @@ function anim:update()
 end
 
 function anim:draw(pos, flip_x)
+  if self.palt_tbl then
+    palt(0, false)
+    for c in all(self.palt_tbl) do
+      palt(c, true)
+    end
+  end
   if self.pal_tbl then
     for i = 0,15 do
       if self.pal_tbl[i] then
@@ -384,6 +391,7 @@ function anim:draw(pos, flip_x)
     1, 1,
     flip_x)
   if (self.pal_tbl) pal()
+  if (self.palt_tbl) palt()
 end
 
 -- creates an animation
@@ -636,10 +644,7 @@ function update_bullets(state)
     -- handle damage and
     -- pushback
     local pushback =
-        ternary(
-            b.left,
-            vec(-3, 0),
-            vec(3, 0))    
+      ternary(b.left, -3, 3)
     if b.is_enemy
     then
       local p = state.player
@@ -648,7 +653,7 @@ function update_bullets(state)
       then
         p.invuln_cooldown = 100
         p.walk_cooldown = 20
-        p.pos += pushback
+        p.pos += vec(pushback, 0)
         sfx(21)
         
         if p.life <= 0
@@ -675,8 +680,13 @@ function update_bullets(state)
               40
           e.hitstun_cooldown =
               60
-          e.pos += pushback
-          e.vel = pushback / 4
+          e.pos = vec(
+            e.pos.x + pushback,
+            e.pos.y)
+          e.vel = 
+            vec(
+              pushback / 4,
+              e.vel.y)
           sfx(20)
         end
       end
@@ -742,10 +752,10 @@ local movement_max = vec(
 -- out of them
 local walker = class.build()
 
-function walker:_init(pos)
+function walker:_init(pos, left)
   self.pos = vec(pos)
   self.vel = vec()
-  self.left = false
+  self.left = left or false
   self.swing_cooldown = 100
   self.life = 3
   
@@ -1202,9 +1212,12 @@ function seeker:update(
   then
     self:seek(player, bullets)
   else
-    -- drop a bit while taking
+    -- veer away while taking
     -- damage
-    self.vel.y += 0.01
+    self.vel =
+      self.vel +
+        vec(0,
+        sign(self.vel.y) * 0.01)
   end
   
     -- push the tail back
@@ -1218,6 +1231,9 @@ function seeker:update(
   
   -- put the new position at
   -- the front of the tail
+  if self.vel:mag() > self.speed then
+    self.vel = self.vel:normalized() * self.speed
+  end
   self.pos += self.vel
   self.tail[1] = self.pos  
 end
@@ -1271,29 +1287,25 @@ local spike = class.build()
 -- spikes are out as the frame
 -- to create the bullet
 spike.damaging_sprid = 22
-spike.damaging_time = 180
+spike.damaging_time = 60
 
 -- offset is a timing offset
 -- that you can use to make
 -- waves of spikes
 function spike:_init(
     pos, offset)
-  if offset == nil
-  then
-    offset = 0
-  end
-  
+  offset = offset or 0  
   self.pos = pos
 
   self.anim = anim(
     21, 22, true,
-    spike.damaging_time)
+    spike.damaging_time,
+    nil, nil, {14})
    
   -- offset spike timing by
   -- pushing the animation
   -- forward
-  for i=0,offset
-  do
+  for i=1,offset do
     self.anim:update()
   end
   
@@ -1331,11 +1343,7 @@ function spike:update(
 end
 
 function spike:draw()
-  palt(0, false)
-  palt(14, true)
   self.anim:draw(self.pos)
-  palt(14, false)
-  palt(0, true)
 end
 
 -- enemy waves
@@ -2098,10 +2106,7 @@ end
 cam = class.build()
 
 function cam:_init(p, max_x)
-  if max_x == nil
-  then
-    max_x = 128*2
-  end
+  max_x = max_x or 256
 
   self.p = p
   self.give = 16
@@ -2148,10 +2153,7 @@ function get_music(
   end
   
   -- stage 2
-  if stage == 2
-  then
-    return 20
-  end
+  if (stage == 2) return 20
   
   -- stage 1
   if (is_restart) return 5
@@ -2162,19 +2164,16 @@ end
 -- stage
 function get_stage_end(
     stage)
-  -- todo: stage 2, stage 3
-  if stage == 3
-  then
-    return 128*3
-  end
-
+  if (stage == 3) return 128*3
+  if (stage == 2) return 128*5
   return 128*3 + 16
 end
 
 function get_stage_1_waves()
   return {
+    wave(0, {spike(vec(60, 60))}),
     wave(60, {
-      walker(vec(110, 30)),
+      walker(vec(110, 30), true),
     		walker(vec(10, 60)),
     }),
     wave(110, {
@@ -2190,13 +2189,14 @@ function get_stage_1_waves()
       walker(vec(20, 40)),
     }, {
       lock_cam = false,
-      spawn_health = true,
     }),
     wave(170, {
       walker(vec(25, 80)),
       walker(vec(35, 40)),
       imp(vec(8, -5),
           --[[left=]]false),
+    }, {
+      spawn_health = true
     }),
     wave(220, {
       imp(vec(12, -30),
@@ -2204,7 +2204,7 @@ function get_stage_1_waves()
       imp(vec(112, -10),
           --[[left=]]true),
     }),
-    wave(128*2, {
+    wave(256, {
       seeker(vec(100, -5)),
     }, {
       spawn_health=true
@@ -2217,46 +2217,115 @@ function get_stage_2_waves()
     wave(40, {
       imp(vec(10, 135)),
       imp(vec(5, -20)),
-      imp(vec(112, 145)),
+      imp(vec(112, 145), true),
     }),
     wave(70, {
       walker(vec(10, 40)),
       walker(vec(15, 55)),
       walker(vec(8, 75)),
-      walker(vec(112, 48)),
-      walker(vec(120, 65)),
+      walker(vec(112, 48), true),
+      walker(vec(120, 65), true),
     }),
     wave(100, {
       seeker(vec(140, -30)),
-      seeker(vec(10, 140)),
+      seeker(vec(-20, 130)),
+    }, {
+      spawn_health = true,
     }),
     wave(0, {
       spike(vec(248, 32)),
       spike(vec(248, 40)),
       spike(vec(248, 48)),
       spike(vec(248, 56)),
-      spike(vec(248, 64)), 
-      spike(vec(248, 72)), 
+      spike(vec(248, 64)),
+      spike(vec(248, 72)),
       spike(vec(248, 80)),
+      spike(vec(248, 88)),
       
       spike(vec(272, 32)),
       spike(vec(272, 40)),
       spike(vec(272, 48)),
       spike(vec(272, 56)),
-      spike(vec(272, 64)), 
-      spike(vec(272, 72)), 
+      spike(vec(272, 64)),
+      spike(vec(272, 72)),
       spike(vec(272, 80)),
+      spike(vec(272, 88)),
       
       spike(vec(296, 32)),
       spike(vec(296, 40)),
       spike(vec(296, 48)),
       spike(vec(296, 56)),
-      spike(vec(296, 64)), 
-      spike(vec(296, 72)), 
+      spike(vec(296, 64)),
+      spike(vec(296, 72)),
       spike(vec(296, 80)),
+      spike(vec(296, 88)),
+      
+      spike(vec(384, 32)),
+      spike(vec(384, 40)),
+      spike(vec(384, 48)),
+      spike(vec(384, 56)),
+      spike(vec(384, 64)),
+      spike(vec(384, 72)),
+      spike(vec(384, 80)),
+      spike(vec(384, 88)),
+      
+      spike(vec(432, 48)),
+      spike(vec(432, 56)),
+      spike(vec(432, 64)),
+      spike(vec(432, 72)),
     }, {
       lock_cam=false,
     }),
+    wave(280, {
+      imp(vec(  118, -10), true),
+      imp(vec(  112, 130), true),
+      walker(vec(30, 32)),
+      walker(vec(30, 70)),
+    }, {
+      spawn_health = true,
+    }),
+    wave(308, {
+      walker(vec(20, 42)),
+      walker(vec(24, 65)),
+      walker(vec(13, 83)),
+
+      seeker(vec(-40, 10)),
+    }, {
+      lock_cam = false,
+    }),
+    wave(328, {
+      walker(vec(34, 34)),
+      walker(vec(51, 53)),
+      walker(vec(39, 64)),
+    }, {
+      lock_cam = false,
+    }),
+    wave(392, {
+      walker(vec(200,  40), true),
+      walker(vec(200,  60), true),
+      walker(vec(200,  80), true),
+    }, {
+      lock_cam = true,
+      spawn_health = true,
+    }),
+    wave(496, {
+      imp(vec(100, -80), true),
+      imp(vec(118, -20), true),
+      imp(vec(112, 130), true),
+      imp(vec(107, 190), true),
+      imp(vec(102, 160), true),
+      imp(vec(50,  142)),
+      walker(vec(-20,  30)),
+      walker(vec(-54,  80)),
+    }),
+  }
+end
+
+function get_stage_3_waves()
+  return {
+    wave(0, {
+      soul(vec(100, 60)),
+    })
   }
 end
 
@@ -2316,13 +2385,16 @@ end
 -- stage for the first time
 -- and restarting
 function init_stage(state)
+  state.stage_end =
+      get_stage_end(
+          state.stage)
+
   state.player = player(
       get_player_start_pos(
           state.stage))
   state.camera = cam(
       state.player,
-      get_stage_end(
-          state.stage) - 128)
+      state.stage_end - 128)
 	
   state.enemies = {}
   state.bullets = {}
@@ -2345,10 +2417,6 @@ function init_stage(state)
         state.soul)
   end
 
-  state.stage_end =
-      get_stage_end(
-          state.stage)
-  
   state.waves = get_waves(
       state.stage)
       
@@ -2953,7 +3021,7 @@ __map__
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-2a29393a2929392929292a3a29392a292a29393a392a29393a2929392929292a3a29392a292a29393a392a29393a2929392929292a3a29392a292a29393a390000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+2a29393a2929392929292a3a29392a292a29393a392a29393a2929392929292a3a29392a292a29393a392a29393a2929392929292a3a29392a292a2a29393a2929392929292a3a29392a292a29393a392a29393a2929392929292a3a29392a292a29392a29393a2929392929292a3a29392a292a29393a392a29393a29293929
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -2962,8 +3030,8 @@ __map__
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-2122212020222021202222212022212220222020202122212020222021202222212022212220222020202122212020222021202222212022212220222020200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-3033313430323034313332303432313234333031313033313430323034313332303432313234333031313033313430323034313332303432313234333031310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+2122212020222021202222212022212220222020202122212020222021202222212022212220222020202122212020222021202222212022212220212221202022202120222221202221222022202020212221202022202120222221202221222022202122212020222021202222212022212220222020202122212020222021
+3033313430323034313332303432313234333031313033313430323034313332303432313234333031313033313430323034313332303432313234303331343032303431333230343231323433303131303331343032303431333230343231323433303033313430323034313332303432313234333031313033313430323034
 __sfx__
 012000080e00015000150001500013000110000e0000e0000e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 011800200e0540e0500e0500e0550e0000e0001505415050150501505500000000001805418050180501805500000000001505415050150501505500000000000c0540c0500c0500c05510000000000e0540e050
