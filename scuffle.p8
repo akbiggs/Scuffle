@@ -2411,7 +2411,7 @@ function next_stage(state)
 end
 
 function _init()
-		state.skip_intro_presses = 0
+		state.skip_intro_presses = 5
 		
   start_stage(0, state)
 end
@@ -2642,6 +2642,9 @@ function draw_stage_1_intro()
 	 do
 	   print_measure((i-1)*2+1)
   end
+  
+  print("skip", 108, 110)
+  print("❎❎❎", 104, 118)
 end
 
 function draw_intro()
