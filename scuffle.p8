@@ -1290,7 +1290,7 @@ function spike:update(
   then
     add(bullets,
         bullet(
-          anim_single(25),
+          anim_single(105),
           self.pos,
           vec(),
           spike.damaging_time,
