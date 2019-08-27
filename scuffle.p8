@@ -2603,7 +2603,7 @@ end
 
 function draw_stage_2_intro()
   print_center("scene 2", 48, 6)
-		print_center("torment", 64, 6)
+		print_center("trial of the damned", 64, 6)
 end
 
 local poem = {
@@ -2631,7 +2631,7 @@ function draw_stage_1_intro()
   if state.intro_life < 200
   then
 		  print_center("scene 1", 48, 6)
-		  print_center("on dead shores", 64, 6)
+		  print_center("on death's shores", 64, 6)
 		  return
 	 end
 	 
