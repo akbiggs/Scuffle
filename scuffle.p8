@@ -2666,6 +2666,10 @@ function draw_intro()
 end
 
 function draw_player_life_ui()
+  if state.player.life<=0 and state.death_timer<=0 then
+    print_center("press ❎ to rise",116,8)
+    return
+  end
   for i = 1,state.player.max_life
   do
     spr(
