@@ -2116,7 +2116,7 @@ local state = {}
 
 function stage_music(
     stage, is_restart)
-  if stage == 4
+  if stage == 4 or stage == 0
   then return
   elseif stage == 3
   then music(16)
@@ -2343,7 +2343,7 @@ end
 
 function get_intro_life(stage)
   if (stage == 1) return 1200
-  if (stage == 4) return 30000
+  if (stage == 4 or stage == 0) return 30000
   return 200
 end
 
@@ -2433,7 +2433,7 @@ end
 function _init()
 		state.skip_intro_presses = 0
 		
-  start_stage(1, state)
+  start_stage(0, state)
 end
 
 function update_music_intro(
@@ -2471,6 +2471,13 @@ function _update60()
   if state.music_intro
   then
     update_music_intro(state)
+  end
+  
+  if not state.stage_done and
+     state.stage == 0 and
+     btnjp(❎)
+  then
+     next_stage(state)
   end
   
   if state.intro_life > 0
@@ -2598,6 +2605,12 @@ function draw_credits()
   print_center("thanks for playing 😐", 112, 12)
 end
 
+function draw_title()
+  print_center("two coins", 40, 10)
+  print_center("by dan andrus and alex biggs", 58, 6)
+  print_center("press ❎ to start", 76, 6)
+end
+
 function draw_stage_3_intro()
   print_center("scene 3", 48, 6)
   print_center("a new monster", 64, 6)
@@ -2656,6 +2669,9 @@ function draw_intro()
   elseif state.stage == 2
   then
     draw_stage_2_intro()
+  elseif state.stage == 0
+  then
+    draw_title()
   else
     draw_stage_1_intro()
   end
