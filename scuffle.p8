@@ -274,32 +274,18 @@ function hbox:contains(v)
       self.pos.y + self.size.y)
 end
 
-function hbox:intersects(hb)
+function hbox:intersects(other)
   -- assumes pos is top-left
-  local pos1 = self.pos
-  local size1 = self.size
-  local pos2 = hb.pos
-  local size2 = hb.size
-      
-  local xoverlap = in_range(
-      pos1.x,
-      pos2.x,
-      pos2.x + size2.x
-  ) or in_range(
-      pos2.x,
-      pos1.x,
-      pos1.x + size1.x)
+  local top_left1 = self.pos
+  local btm_right1 = top_left1 + self.size
+  local top_left2 = other.pos
+  local btm_right2 = top_left2 + other.size
   
-  local yoverlap = in_range(
-      pos1.y,
-      pos2.y,
-      pos2.y + size2.y
-  ) or in_range(
-      pos2.y,
-      pos1.y,
-      pos1.y + size1.y)
-               
-  return xoverlap and yoverlap 
+  return (
+        top_left1.x < btm_right2.x
+    and top_left1.y < btm_right2.y
+    and btm_right1.x > top_left2.x
+    and btm_right1.y > top_left2.y)
 end
 
 -- animation
@@ -523,6 +509,7 @@ function bullet:_init(
   
   self.size = props.size or vec(
       8, 8)
+  self.hbox_offset = props.hbox_offset or vec()
   self.deadly_start = props.deadly_start or 30000
 	  self.deadly_end = props.deadly_end or -30000
 
@@ -548,10 +535,12 @@ function bullet:collide(other)
   end
 
   local bullet_hb = hbox(
-      self.pos,
+      self.pos+self.hbox_offset,
       self.size)
-  local other_hb = hbox(
-      other.pos,
+  local other_hb = 
+    other.hitbox and other:hitbox() or
+    hbox(
+      other.pos + (other.hbox_offset or vec()),
       other.size or vec(8, 8))
   
   if bullet_hb:intersects(
@@ -592,7 +581,9 @@ function update_bullets(state)
   for b in all(state.bullets)
   do
     b:update()
-    
+  end
+
+  for b in all(state.bullets) do
     for ob in all(state.bullets)
     do
       if b != ob and
@@ -656,7 +647,7 @@ local health = class.build()
 function health:_init(pos)
   self.type = type
   self.pos = pos
-  self.life = 400
+  self.life = 500
 end
 
 function health:update(player)
@@ -712,7 +703,7 @@ function coin:update(player)
     self.vel = self.vel:normalized() * (self.vel:mag() - 0.125)
   end
   if hbox(self.pos, vec(3, 5))
-      :intersects(player:hbox()) then
+      :intersects(player:hitbox()) then
     if (self.life > 0) sfx(23)
     self.life = 0
   end
@@ -803,7 +794,7 @@ function walker:swing(bullets)
   		anim_chain {
 		    anim_single(
 		      11, 4, vec(0, 1)),
-		    anim_single(11, 40),
+		    anim_single(11, 25),
 		    anim_single(12, 2),
 		    anim_single(9, 20, vec(0, 2)),
     }
@@ -928,6 +919,8 @@ function walker:draw()
       ternary(self.left, -1, 1),
     self.pos.y + 2)
 
+  if (flr(self.invuln_cooldown / 2) % 3 == 1) return
+
   palt(14, true)
   palt(0, false)
 
@@ -988,15 +981,17 @@ function imp:_init(pos, left)
 end
 
 function imp:shoot(bullets)
-  local offset = ternary(
-      self.left,
-      vec(-8, 0),
-      vec(8, 0))
+  local offset =
+    vec(
+      ternary(
+        self.left, -8, 8),
+      3)
   local speed = 1.2
-  local vel = ternary(
-      self.left,
-      vec(-speed, 0),
-      vec(speed, 0))
+  local vel = 
+    vec(
+      ternary(
+        self.left,-speed,speed),
+      0)
   local bullet = bullet(
       anim_single(14),
       self.pos + offset,
@@ -1006,6 +1001,8 @@ function imp:shoot(bullets)
       self.left,
       {
         reflectable=true,
+        size=vec(4,3),
+        hbox_offset=vec(2,1),
       })
   add(bullets, bullet)
   sfx(22)
@@ -1098,7 +1095,7 @@ function imp:draw()
 
   if self.windup_time > 0 then
     self.windup_anim:draw(
-      self.pos, self.left)
+      self.pos+vec(0,3), self.left)
   end
 end
 
@@ -1139,18 +1136,18 @@ function seeker:seek(
           self.speed,
           0.025) 
  
-  -- to do collisions with the
   add(bullets,
-      bullet(
-          anim_single(0),
-          self.pos,
-          vec(),
-          1,
-          true,
-          false,
-          {
-            size=vec(4, 4),
-          }))
+    bullet(
+      anim_single(0),
+      self.pos,
+      vec(),
+      1,
+      true,
+      false,
+      {
+        size=vec(4, 4),
+        hbox_offset=vec(2,2),
+      }))
 end
 
 function seeker:damage(amount)
@@ -1208,6 +1205,8 @@ function seeker:update(
 end
 
 function seeker:draw()
+  if (flr(self.invuln_cooldown / 2) % 3 == 1) return
+
   palt(0, false)
   palt(14, true)
 
@@ -1404,7 +1403,7 @@ end
 function player:_init(pos)
   self.pos = vec(pos)
   self.vel = vec()
-  self.max_life = 6
+  self.max_life = 5
   self.life = self.max_life
   self.invuln_cooldown = 100
   self.left = false
@@ -1422,7 +1421,7 @@ end
 
 local player_hbox_wh = vec(4,8)
 
-function player:hbox()
+function player:hitbox()
   return hbox(
     self.pos + vec(2, 0),
     player_hbox_wh)
@@ -1561,10 +1560,7 @@ function player:draw()
     self.pos.y + 1)
 
   -- maybe blink if invuln
-  if self.invuln_cooldown % 3 != 0
-  then
-    return
-  end
+  if (flr(self.invuln_cooldown / 2) % 3 == 1) return
   
   palt(14, true)
   pal(12, self.skin_color)
@@ -2668,7 +2664,7 @@ function draw_player_life_ui()
       ternary(
         i <= state.player.life,
         7, 8),
-      4 + i * 8,
+      (i - 1) * 8 + 64 - 4 * state.player.max_life,
       116)
   end
 end
@@ -2781,13 +2777,13 @@ function _draw()
   draw_ui()
 end
 __gfx__
-00000000eeebbeeeeeebbeeeeeebbeeeeeeeeeee0000000000000000080008000000000000000000000007770000077000077770000000000000000000000000
-00000000eebccceeeebccceeeebccceeeeeeeeee0000000000000000888088800000000000000000000076670000760000777770000000000000000000088000
-00700700eebccceeeebccceeeebccceeeeeeeeee0000000000000000888888800000000000000000007767770077600000777770000000000000999900088800
+00000000eeebbeeeeeebbeeeeeebbeeeeeeeeeee0000000000000000080008000000000000000000000007770000077000077770000000000000999900000000
+00000000eebccceeeebccceeeebccceeeeeeeeee0000000000000000888088800000000000000000000076670000760000777770000000000000900000088000
+00700700eebccceeeebccceeeebccceeeeeeeeee0000000000000000888888800000000000000000007767770077600000777770000000009999999900088800
 00077000eeecceeeeeecceeeeeecceeeeeeeeeee0000000000000000888888800066600044000000476677774760000044677777000000000000900088888880
-00077000eecccceeeecccceeeecccceeeeeeeeee0000000000000000288888200000000046700000447777774400000047766777000000009999999988888888
-00700700eecccceeeecccceeeecccceeecceeeee0011110001111110028882000000000000670000007777770000000000677677011111000000900088888880
-00000000eecccceeecccccceeecccceebcccccce0111111011111111002820000000000000067700007777700000000000006767111111100000999900088800
+00077000eecccceeeecccceeeecccceeeeeeeeee0000000000000000288888200000000046700000447777774400000047766777000000000000999988888888
+00700700eecccceeeecccceeeecccceeecceeeee0011110001111110028882000000000000670000007777770000000000677677011111000000000088888880
+00000000eecccceeecccccceeecccceebcccccce0111111011111111002820000000000000067700007777700000000000006767111111100000000000088800
 00000000eeceeceeeeeeeeeeeeeececebbbccccc0011110001111110000200000000000000000670000777700000000000000677011111000000000000088000
 0000000000000000000000000000000000000000eeeeeeeeeeeeeeee0a000000000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00000000
 0888888000000000000000000000000000000000eeeeeeeee7eee7eeaaa00000000000000000000000000000ee2222eeee2222eeeeeeeeeee22eeeee00000000
